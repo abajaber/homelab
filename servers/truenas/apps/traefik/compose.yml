@@ -1,0 +1,29 @@
+networks:
+  proxy:
+    driver: bridge
+    name: proxy
+services:
+  traefik:
+    command:
+    - --api.dashboard=true
+    container_name: traefik
+    environment:
+    - CF_DNS_API_TOKEN=${CF_DNS_API_TOKEN}
+    image: traefik:3
+    labels:
+      traefik.enable: 'true'
+      traefik.http.routers.traefik.entrypoints: websecure
+      traefik.http.routers.traefik.rule: Host(`traefik.bajaber.ca`)
+      traefik.http.routers.traefik.service: api@internal
+      traefik.http.routers.traefik.tls: 'true'
+      traefik.http.routers.traefik.tls.certresolver: cloudflare
+    networks:
+    - proxy
+    ports:
+    - 80:80
+    - 443:443
+    restart: unless-stopped
+    volumes:
+    - /etc/localtime:/etc/localtime:ro
+    - /var/run/docker.sock:/var/run/docker.sock:ro
+    - /mnt/redsea/apps/traefik/:/etc/traefik/

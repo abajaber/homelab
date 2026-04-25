@@ -1,0 +1,70 @@
+name: jellyfin
+networks:
+  proxy:
+    external: true
+    name: proxy
+services:
+  jellyfin:
+    container_name: jellyfin
+    devices:
+      - permissions: rwm
+        source: /dev/dri/renderD128
+        target: /dev/dri/renderD128
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Los_Angeles
+      - JELLYFIN_PublishedServerUrl=http://192.168.1.183:8096
+    group_add:
+      - "104"
+    image: jellyfin/jellyfin
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.jellyfin.entryPoints=https
+      - traefik.http.routers.jellyfin.rule=Host(`jellyfin.bajaber.ca`)
+      - traefik.http.routers.jellyfin.tls=true
+      - traefik.http.routers.jellyfin.service=jellyfin@file
+      - traefik.http.services.jellyfin.loadbalancer.server.port=8096
+      - traefik.http.services.jellyfin.loadbalancer.server.scheme=http
+      - traefik.http.routers.jellyfin.middlewares=securityHeaders@file
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+      - bind:
+          create_host_path: true
+        source: /docker/jellyfin
+        target: /config
+        type: bind
+      - bind:
+          create_host_path: true
+        source: /opt/stacks/jellyfin/to/cache
+        target: /cache
+        type: bind
+      - bind:
+          create_host_path: true
+        source: /data
+        target: /data
+        type: bind
+  jellyseerr:
+    container_name: jellyseerr
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Los_Angeles
+    image: fallenbagel/jellyseerr:latest
+    labels:
+      - traefik.enable=true
+    networks:
+      proxy: null
+    ports:
+      - mode: ingress
+        protocol: tcp
+        published: "5055"
+        target: 5055
+    restart: unless-stopped
+    volumes:
+      - bind:
+          create_host_path: true
+        source: /docker/jellyseerr
+        target: /app/config
+        type: bind

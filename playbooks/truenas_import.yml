@@ -1,0 +1,53 @@
+---
+# Discover Custom Apps already on TrueNAS that aren't yet in this repo and
+# write `servers/truenas/apps/<name>/{app.yml,compose.yml}` for each.
+#
+# Read-only on the server: this never writes to TrueNAS. Adoption (stamping
+# the x-homelab marker on live apps) is handled by truenas_sync.yml in apply
+# mode, which detects "in repo + on server without marker" as an adoption
+# case and updates the live app with the stamped compose.
+#
+# Re-running is safe because apps already present in the repo are skipped.
+
+- name: Import TrueNAS Custom Apps into repo
+  hosts: truenas
+  gather_facts: false
+  pre_tasks:
+    - name: Load per-host vars
+      ansible.builtin.include_vars: "{{ playbook_dir }}/../servers/{{ inventory_hostname }}/vars.yml"
+    - name: Load per-host vault
+      ansible.builtin.include_vars: "{{ playbook_dir }}/../servers/{{ inventory_hostname }}/vault.yml"
+
+  tasks:
+    - name: Run TrueNAS import script
+      ansible.builtin.command:
+        argv: >-
+          {{
+            [
+              playbook_dir ~ '/../.venv/bin/python3',
+              playbook_dir ~ '/../scripts/truenas_import.py',
+              '--apps-dir=' ~ playbook_dir ~ '/../servers/' ~ inventory_hostname ~ '/apps',
+              '--api-url=' ~ truenas_api_url,
+              '--api-user=' ~ truenas_api_user,
+              '--managed-by=' ~ homelab_managed_by,
+              '--host=' ~ inventory_hostname,
+            ]
+            + (['--insecure'] if (truenas_api_insecure | default(false) | bool) else [])
+          }}
+      environment:
+        TRUENAS_API_KEY: "{{ truenas_api_key }}"
+      register: _import_result
+      # `changed=true` in stdout means files were written locally. That's a
+      # repo-side change, not a server-side one — still legitimate "changed".
+      changed_when: "'changed=true' in _import_result.stdout"
+      delegate_to: localhost
+      run_once: true
+
+    - name: Import output
+      ansible.builtin.debug:
+        msg: "{{ _import_result.stdout_lines }}"
+
+    - name: Import warnings
+      ansible.builtin.debug:
+        msg: "{{ _import_result.stderr_lines }}"
+      when: _import_result.stderr_lines | length > 0

@@ -1,0 +1,12 @@
+---
+# Secrets are referenced as ${VAR} and pulled from a sibling `.env` file
+# that is ansible-vault encrypted at rest. See `.env.example`.
+services:
+  hello:
+    image: nginxdemos/hello:plain-text
+    restart: unless-stopped
+    environment:
+      EXAMPLE_PASSWORD: ${EXAMPLE_PASSWORD}
+      EXAMPLE_API_TOKEN: ${EXAMPLE_API_TOKEN}
+    ports:
+      - "127.0.0.1:8889:80"

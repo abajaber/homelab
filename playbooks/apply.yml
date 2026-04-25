@@ -1,0 +1,29 @@
+---
+# Top-level reconcile. Confirms before running unless `confirm=auto` is set.
+
+- name: Confirm apply
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Confirmation prompt
+      ansible.builtin.pause:
+        prompt: |
+          About to reconcile every server to the state in this repo.
+          This may CREATE, UPDATE, or DELETE apps. Continue? (yes/no)
+      register: _confirm
+      when: confirm | default('ask') != 'auto'
+
+    - name: Abort if not confirmed
+      ansible.builtin.fail:
+        msg: "aborted by user"
+      when:
+        - confirm | default('ask') != 'auto'
+        - (_confirm.user_input | default('')) | lower not in ['y', 'yes']
+
+- import_playbook: docker_vm_sync.yml
+  vars:
+    mode: apply
+
+- import_playbook: truenas_sync.yml
+  vars:
+    mode: apply

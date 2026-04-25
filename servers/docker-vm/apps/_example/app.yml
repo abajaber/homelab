@@ -1,0 +1,6 @@
+---
+name: example
+# This is a template. Copy this directory to a new name and flip enabled=true.
+# To run the verification flow, set enabled=true here and `apply` against a
+# throwaway docker host.
+enabled: false

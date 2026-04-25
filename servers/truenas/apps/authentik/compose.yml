@@ -1,0 +1,498 @@
+configs:
+  permissions_actions_data:
+    content: '[{"read_only": false, "mount_path": "/mnt/permission/postgres_postgres_data",
+      "is_temporary": false, "identifier": "postgres_postgres_data", "recursive":
+      false, "mode": "check", "uid": 999, "gid": 999, "chmod": null}]'
+networks:
+  proxy:
+    external: true
+    name: proxy
+services:
+  authentik-server:
+    cap_drop:
+    - ALL
+    command:
+    - server
+    depends_on:
+      permissions:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4096M
+    environment:
+      AUTHENTIK_LISTEN__HTTP: 0.0.0.0:30140
+      AUTHENTIK_LISTEN__HTTPS: 0.0.0.0:30141
+      AUTHENTIK_POSTGRESQL__HOST: postgres
+      AUTHENTIK_POSTGRESQL__NAME: authentik
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_POSTGRESQL_PASSWORD}
+      AUTHENTIK_POSTGRESQL__PORT: '5432'
+      AUTHENTIK_POSTGRESQL__USER: authentik
+      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
+      AUTHENTIK_STORAGE__BACKEND: file
+      AUTHENTIK_STORAGE__FILE__MEDIA__PATH: /data/media
+      AUTHENTIK_STORAGE__FILE__PATH: /data
+      AUTHENTIK_STORAGE__FILE__REPORTS__PATH: /data/reports
+      AUTHENTIK_STORAGE__MEDIA__BACKEND: file
+      AUTHENTIK_STORAGE__REPORTS__BACKEND: file
+      GID: '568'
+      GROUP_ID: '568'
+      NVIDIA_VISIBLE_DEVICES: void
+      PGID: '568'
+      PUID: '568'
+      TZ: America/Toronto
+      UID: '568'
+      UMASK: '002'
+      UMASK_SET: '002'
+      USER_ID: '568'
+    expose:
+    - 30140
+    group_add:
+    - 568
+    healthcheck:
+      interval: 30s
+      retries: 5
+      start_interval: 2s
+      start_period: 15s
+      test:
+      - CMD
+      - /lifecycle/ak
+      - healthcheck
+      timeout: 5s
+    image: ghcr.io/goauthentik/server:2025.12.1
+    labels:
+      traefik.enable: 'true'
+      traefik.http.routers.authentik.entrypoints: websecure
+      traefik.http.routers.authentik.rule: Host(`auth.bajaber.ca`)
+      traefik.http.routers.authentik.tls: 'true'
+      traefik.http.routers.authentik.tls.certresolver: cloudflare
+      traefik.http.services.authentik.loadbalancer.server.port: '30140'
+    networks:
+    - default
+    - proxy
+    platform: linux/amd64
+    ports:
+    - mode: ingress
+      protocol: tcp
+      published: 30141
+      target: 30141
+    privileged: false
+    restart: unless-stopped
+    security_opt:
+    - no-new-privileges=true
+    stdin_open: false
+    tty: false
+    user: 568:568
+    volumes:
+    - bind:
+        create_host_path: false
+        propagation: rprivate
+      read_only: false
+      source: /mnt/redsea/apps/authentik/certs
+      target: /certs
+      type: bind
+    - bind:
+        create_host_path: false
+        propagation: rprivate
+      read_only: false
+      source: /mnt/redsea/apps/authentik/data
+      target: /data
+      type: bind
+    - bind:
+        create_host_path: false
+        propagation: rprivate
+      read_only: false
+      source: /mnt/redsea/apps/authentik/templates
+      target: /templates
+      type: bind
+  authentik-worker:
+    cap_drop:
+    - ALL
+    command:
+    - worker
+    depends_on:
+      permissions:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4096M
+    environment:
+      AUTHENTIK_POSTGRESQL__HOST: postgres
+      AUTHENTIK_POSTGRESQL__NAME: authentik
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_POSTGRESQL_PASSWORD}
+      AUTHENTIK_POSTGRESQL__PORT: '5432'
+      AUTHENTIK_POSTGRESQL__USER: authentik
+      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
+      AUTHENTIK_STORAGE__BACKEND: file
+      AUTHENTIK_STORAGE__FILE__MEDIA__PATH: /data/media
+      AUTHENTIK_STORAGE__FILE__PATH: /data
+      AUTHENTIK_STORAGE__FILE__REPORTS__PATH: /data/reports
+      AUTHENTIK_STORAGE__MEDIA__BACKEND: file
+      AUTHENTIK_STORAGE__REPORTS__BACKEND: file
+      GID: '568'
+      GROUP_ID: '568'
+      NVIDIA_VISIBLE_DEVICES: void
+      PGID: '568'
+      PUID: '568'
+      TZ: America/Toronto
+      UID: '568'
+      UMASK: '002'
+      UMASK_SET: '002'
+      USER_ID: '568'
+    group_add:
+    - 568
+    - 999
+    healthcheck:
+      interval: 30s
+      retries: 5
+      start_interval: 2s
+      start_period: 15s
+      test:
+      - CMD
+      - /lifecycle/ak
+      - healthcheck
+      timeout: 5s
+    image: ghcr.io/goauthentik/server:2025.12.1
+    platform: linux/amd64
+    privileged: false
+    restart: unless-stopped
+    security_opt:
+    - no-new-privileges=true
+    stdin_open: false
+    tty: false
+    user: 568:568
+    volumes:
+    - bind:
+        create_host_path: false
+        propagation: rprivate
+      read_only: false
+      source: /mnt/redsea/apps/authentik/certs
+      target: /certs
+      type: bind
+    - bind:
+        create_host_path: false
+        propagation: rprivate
+      read_only: false
+      source: /mnt/redsea/apps/authentik/data
+      target: /data
+      type: bind
+    - bind:
+        create_host_path: false
+        propagation: rprivate
+      read_only: false
+      source: /mnt/redsea/apps/authentik/templates
+      target: /templates
+      type: bind
+    - bind:
+        create_host_path: false
+        propagation: rprivate
+      read_only: false
+      source: /var/run/docker.sock
+      target: /var/run/docker.sock
+      type: bind
+  permissions:
+    cap_add:
+    - CHOWN
+    - DAC_OVERRIDE
+    - FOWNER
+    cap_drop:
+    - ALL
+    configs:
+    - mode: 320
+      source: permissions_actions_data
+      target: /script/actions.json
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1024M
+    entrypoint:
+    - python3
+    - /script/permissions.py
+    environment:
+      GID: '568'
+      GROUP_ID: '568'
+      NVIDIA_VISIBLE_DEVICES: void
+      PGID: '568'
+      PUID: '568'
+      TZ: America/Toronto
+      UID: '568'
+      UMASK: '002'
+      UMASK_SET: '002'
+      USER_ID: '568'
+    group_add:
+    - 568
+    healthcheck:
+      disable: true
+    image: ixsystems/container-utils:1.0.2
+    network_mode: none
+    platform: linux/amd64
+    privileged: false
+    restart: on-failure:1
+    security_opt:
+    - no-new-privileges=true
+    stdin_open: false
+    tty: false
+    user: 0:0
+    volumes:
+    - bind:
+        create_host_path: false
+        propagation: rprivate
+      read_only: false
+      source: /mnt/redsea/apps/authentik/db
+      target: /mnt/permission/postgres_postgres_data
+      type: bind
+  postgres:
+    cap_drop:
+    - ALL
+    depends_on:
+      permissions:
+        condition: service_completed_successfully
+      postgres_upgrade:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4096M
+    environment:
+      GID: '568'
+      GROUP_ID: '568'
+      NVIDIA_VISIBLE_DEVICES: void
+      PGDATA: /var/lib/postgresql/18/docker
+      PGID: '568'
+      PGPORT: '5432'
+      POSTGRES_DB: authentik
+      POSTGRES_PASSWORD: ${AUTHENTIK_POSTGRESQL_PASSWORD}
+      POSTGRES_USER: authentik
+      PUID: '568'
+      TZ: America/Toronto
+      UID: '568'
+      UMASK: '002'
+      UMASK_SET: '002'
+      USER_ID: '568'
+    group_add:
+    - 568
+    healthcheck:
+      interval: 30s
+      retries: 5
+      start_interval: 2s
+      start_period: 15s
+      test:
+      - CMD
+      - pg_isready
+      - -h
+      - 127.0.0.1
+      - -p
+      - '5432'
+      - -U
+      - authentik
+      - -d
+      - authentik
+      timeout: 5s
+    image: postgres:18.1-trixie
+    platform: linux/amd64
+    privileged: false
+    restart: unless-stopped
+    security_opt:
+    - no-new-privileges=true
+    shm_size: 256M
+    stdin_open: false
+    stop_grace_period: 60s
+    tty: false
+    user: 999:999
+    volumes:
+    - bind:
+        create_host_path: false
+        propagation: rprivate
+      read_only: false
+      source: /mnt/redsea/apps/authentik/db
+      target: /var/lib/postgresql
+      type: bind
+  postgres_upgrade:
+    cap_drop:
+    - ALL
+    depends_on:
+      permissions:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1024M
+    entrypoint:
+    - /bin/bash
+    - -c
+    - /upgrade.sh
+    environment:
+      GID: '568'
+      GROUP_ID: '568'
+      NVIDIA_VISIBLE_DEVICES: void
+      PGDATA: /var/lib/postgresql/18/docker
+      PGID: '568'
+      PGPORT: '5432'
+      POSTGRES_DB: authentik
+      POSTGRES_PASSWORD: ${AUTHENTIK_POSTGRESQL_PASSWORD}
+      POSTGRES_USER: authentik
+      PUID: '568'
+      TARGET_VERSION: '18'
+      TZ: America/Toronto
+      UID: '568'
+      UMASK: '002'
+      UMASK_SET: '002'
+      USER_ID: '568'
+    group_add:
+    - 568
+    healthcheck:
+      disable: true
+    image: ixsystems/postgres-upgrade:1.1.7
+    network_mode: none
+    platform: linux/amd64
+    privileged: false
+    restart: on-failure:1
+    security_opt:
+    - no-new-privileges=true
+    stdin_open: false
+    tty: false
+    user: 999:999
+    volumes:
+    - bind:
+        create_host_path: false
+        propagation: rprivate
+      read_only: false
+      source: /mnt/redsea/apps/authentik/db
+      target: /var/lib/postgresql
+      type: bind
+volumes: {}
+x-notes: '# Authentik
+
+
+  ## Security
+
+
+  **Read the following security precautions to ensure that you wish to continue using
+  this application.**
+
+
+  ---
+
+
+  ### Container: [authentik-server]
+
+
+  #### Running user/group(s)
+
+
+  - User: 568
+
+  - Group: 568
+
+  - Supplementary Groups: apps
+
+
+  ---
+
+
+  ### Container: [authentik-worker]
+
+
+  #### Running user/group(s)
+
+
+  - User: 568
+
+  - Group: 568
+
+  - Supplementary Groups: apps, docker
+
+
+  #### Passing Host Files, Devices, or Sockets into the Container
+
+
+  - Docker Socket (/var/run/docker.sock) - (Read/Write)
+
+
+  ---
+
+
+  ### Container: [postgres]
+
+
+  #### Running user/group(s)
+
+
+  - User: 999
+
+  - Group: 999
+
+  - Supplementary Groups: apps
+
+
+  ---
+
+
+  ### Container: [permissions]
+
+
+  **This container is short-lived.**
+
+
+  #### Running user/group(s)
+
+
+  - User: root
+
+  - Group: root
+
+  - Supplementary Groups: apps
+
+
+  ---
+
+
+  ### Container: [postgres_upgrade]
+
+
+  **This container is short-lived.**
+
+
+  #### Running user/group(s)
+
+
+  - User: 999
+
+  - Group: 999
+
+  - Supplementary Groups: apps
+
+
+  ---
+
+
+  ## Bug Reports and Feature Requests
+
+
+  If you find a bug in this app or have an idea for a new feature, please file an
+  issue at
+
+  https://github.com/truenas/apps
+
+  '
+x-portals:
+- host: 0.0.0.0
+  name: HTTP
+  path: /
+  port: 30140
+  scheme: http
+- host: 0.0.0.0
+  name: HTTPS
+  path: /
+  port: 30141
+  scheme: https

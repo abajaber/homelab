@@ -1,0 +1,29 @@
+name: homarr
+networks:
+  default:
+    external: true
+    name: proxy
+services:
+  homarr:
+    container_name: homarr
+    environment:
+      - SECRET_ENCRYPTION_KEY=${SECRET_ENCRYPTION_KEY}
+    expose:
+      - 7575
+    image: ghcr.io/homarr-labs/homarr:latest
+    labels:
+      - traefik.enable=true
+    networks:
+      default: null
+    restart: unless-stopped
+    volumes:
+      - bind:
+          create_host_path: true
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+        type: bind
+      - bind:
+          create_host_path: true
+        source: /opt/stacks/homarr/homarr/appdata
+        target: /appdata
+        type: bind

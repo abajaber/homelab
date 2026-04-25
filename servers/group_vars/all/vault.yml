@@ -1,0 +1,4 @@
+---
+# Encrypt this file in place once you have a real password set:
+#   ansible-vault encrypt group_vars/all/vault.yml
+# Anything you add here is referenced from vars.yml as `vault_<name>`.

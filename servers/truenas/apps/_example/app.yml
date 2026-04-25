@@ -1,0 +1,4 @@
+---
+name: example
+# Template. Copy this dir to a new name, set enabled=true, replace compose.yml.
+enabled: false

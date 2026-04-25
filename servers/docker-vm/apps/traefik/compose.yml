@@ -1,0 +1,45 @@
+name: traefik
+networks:
+  proxy:
+    driver: bridge
+    name: proxy
+services:
+  traefik:
+    container_name: traefik
+    environment:
+      - CF_DNS_API_TOKEN=${CF_DNS_API_TOKEN}
+    image: traefik:3
+    labels:
+      traefik.enable: true
+      traefik.http.routers.api.entryPoints: https
+      traefik.http.routers.api.service: api@internal
+    networks:
+      proxy: null
+    ports:
+      - mode: ingress
+        protocol: tcp
+        published: "80"
+        target: 80
+      - mode: ingress
+        protocol: tcp
+        published: "443"
+        target: 443
+    restart: unless-stopped
+    volumes:
+      - bind:
+          create_host_path: true
+        read_only: true
+        source: /etc/localtime
+        target: /etc/localtime
+        type: bind
+      - bind:
+          create_host_path: true
+        read_only: true
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+        type: bind
+      - bind:
+          create_host_path: true
+        source: /opt/stacks/traefik/config
+        target: /etc/traefik
+        type: bind

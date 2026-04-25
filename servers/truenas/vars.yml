@@ -1,0 +1,17 @@
+---
+# Per-host config for the TrueNAS box. Loaded explicitly by playbooks
+# via include_vars (see playbooks/truenas_sync.yml).
+#
+# TrueNAS Scale 25.x exposes a JSON-RPC API over WebSocket, version-pinned in
+# the URL path. Bump truenas_api_version after upgrading TrueNAS and re-test.
+# Override truenas_api_url if the API is reached at a different hostname or
+# behind a non-default port.
+truenas_api_version: "v25.10.2"
+# Talk to TrueNAS directly on its HTTPS port (4443) rather than going through
+# Traefik. If Traefik fronts the box and forwards to it as plain HTTP, TrueNAS
+# auto-revokes API keys ("HTTP transport is insecure"), so we bypass the proxy.
+truenas_api_url: "wss://{{ ansible_host }}:4443/api/{{ truenas_api_version }}"
+truenas_api_insecure: true   # TrueNAS ships a self-signed cert by default
+truenas_api_user: "ansible"   # the user the API key belongs to (UI: Credentials -> API Keys)
+truenas_dataset_root: redsea/apps
+truenas_api_key: "{{ vault_truenas_api_key }}"

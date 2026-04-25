@@ -1,0 +1,19 @@
+services:
+  netbird-client:
+    cap_add:
+    - NET_ADMIN
+    - SYS_ADMIN
+    - SYS_RESOURCE
+    container_name: netbird-client
+    environment:
+    - NB_SETUP_KEY=${NB_SETUP_KEY}
+    - NB_MANAGEMENT_URL=https://netbird.bajaber.ca
+    hostname: truenas
+    image: netbirdio/netbird:latest
+    network_mode: host
+    restart: unless-stopped
+    volumes:
+    - netbird-client:/var/lib/netbird
+volumes:
+  netbird-client:
+    name: netbird-client

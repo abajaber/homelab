@@ -1,0 +1,23 @@
+# Ansible Vault password — must never be committed
+.vault-password
+
+# Ansible runtime artifacts
+*.retry
+.ansible/
+ansible_collections/
+
+# Python venv used by bootstrap.sh / scripts
+.venv/
+__pycache__/
+*.pyc
+
+# Editor / OS noise
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Per-app secrets are committed *encrypted* (ansible-vault) at
+# servers/<host>/apps/<app>/.env. Do NOT add `*.env` to this gitignore — the
+# pre-commit hook (.githooks/pre-commit) refuses cleartext .env files, and the
+# apply-time check in the playbooks does the same before secrets ship anywhere.

@@ -1,0 +1,5 @@
+---
+# Per-app secrets for the Docker VM. Reference these from compose.yml via
+# `${SECRET_NAME}` and wire the .env file in the app's app.yml.
+# Encrypt this file before adding real secrets:
+#   ansible-vault encrypt docker-vm/vault.yml

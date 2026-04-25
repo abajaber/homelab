@@ -1,0 +1,5 @@
+---
+# Per-host config for the Docker VM. Loaded explicitly by playbooks
+# via include_vars (see playbooks/docker_vm_sync.yml).
+docker_vm_apps_dest_dir: /opt/stacks
+docker_vm_prune_volumes: false

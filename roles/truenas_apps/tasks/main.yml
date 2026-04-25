@@ -1,0 +1,43 @@
+---
+# Reconciles TrueNAS Scale Custom Apps with `servers/truenas/apps/` in this repo.
+# The actual API work happens in scripts/truenas_reconcile.py — this role wraps it.
+
+- name: Run TrueNAS reconcile script
+  ansible.builtin.command:
+    argv: >-
+      {{
+        [
+          playbook_dir ~ '/../.venv/bin/python3',
+          playbook_dir ~ '/../scripts/truenas_reconcile.py',
+          '--apps-dir=' ~ truenas_apps_dir,
+          '--api-url=' ~ truenas_api_url,
+          '--api-user=' ~ truenas_api_user,
+          '--dataset-root=' ~ truenas_dataset_root,
+          '--mode=' ~ (mode | default('plan')),
+          '--managed-by=' ~ homelab_managed_by,
+          '--host=' ~ inventory_hostname,
+          '--vault-password-file=' ~ playbook_dir ~ '/../.vault-password',
+        ]
+        + (['--insecure'] if (truenas_api_insecure | default(false) | bool) else [])
+        + (['--show-diff'] if (show_diff | default(false) | bool) else [])
+      }}
+  environment:
+    TRUENAS_API_KEY: "{{ truenas_api_key }}"
+  register: _truenas_result
+  # Only report "changed" when we actually wrote to TrueNAS. In plan mode the
+  # script's `changed=true` signals drift, not a state change — Ansible's
+  # changed/ok status should track real side effects.
+  changed_when:
+    - "(mode | default('plan')) == 'apply'"
+    - "'changed=true' in _truenas_result.stdout"
+  delegate_to: localhost
+  run_once: true
+
+- name: Reconcile output
+  ansible.builtin.debug:
+    msg: "{{ _truenas_result.stdout_lines }}"
+
+- name: Reconcile warnings (only shown when stderr non-empty)
+  ansible.builtin.debug:
+    msg: "{{ _truenas_result.stderr_lines }}"
+  when: (_truenas_result.stderr_lines | default([])) | length > 0

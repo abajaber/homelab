@@ -1,0 +1,20 @@
+---
+- name: Reconcile TrueNAS apps with repo
+  hosts: truenas
+  gather_facts: false
+  pre_tasks:
+    - name: Refuse to proceed if any per-app .env is in cleartext
+      ansible.builtin.command:
+        argv:
+          - "{{ playbook_dir }}/../.venv/bin/python3"
+          - "{{ playbook_dir }}/../scripts/check_envs_encrypted.py"
+          - "{{ playbook_dir }}/../servers/{{ inventory_hostname }}/apps"
+      changed_when: false
+      delegate_to: localhost
+      run_once: true
+    - name: Load per-host vars
+      ansible.builtin.include_vars: "{{ playbook_dir }}/../servers/{{ inventory_hostname }}/vars.yml"
+    - name: Load per-host vault
+      ansible.builtin.include_vars: "{{ playbook_dir }}/../servers/{{ inventory_hostname }}/vault.yml"
+  roles:
+    - truenas_apps

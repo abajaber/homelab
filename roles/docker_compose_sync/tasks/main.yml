@@ -1,0 +1,159 @@
+---
+# Reconciles compose projects under {{ docker_vm_apps_dest_dir }} on the host
+# to match the directories under {{ docker_vm_apps_src_dir }} in this repo.
+#
+# Modes:
+#   mode=plan   (default) -> diff only, no changes
+#   mode=apply           -> rsync, compose up, prune orphans
+
+- name: Refuse to proceed if any per-app .env is in cleartext
+  ansible.builtin.command:
+    argv:
+      - "{{ playbook_dir }}/../.venv/bin/python3"
+      - "{{ playbook_dir }}/../scripts/check_envs_encrypted.py"
+      - "{{ docker_vm_apps_src_dir }}"
+  changed_when: false
+  delegate_to: localhost
+  run_once: true
+
+- name: Discover candidate app directories in repo
+  ansible.builtin.find:
+    paths: "{{ docker_vm_apps_src_dir }}"
+    file_type: directory
+    depth: 1
+  register: _src_dirs
+  delegate_to: localhost
+  run_once: true
+  check_mode: false
+
+- name: Build candidate names
+  ansible.builtin.set_fact:
+    _candidates: "{{ _src_dirs.files | map(attribute='path') | map('basename') | sort | list }}"
+
+- name: Read app.yml for each candidate
+  ansible.builtin.set_fact:
+    _apps_meta: "{{ _apps_meta | default([]) + [_meta] }}"
+  vars:
+    _raw: "{{ lookup('file', docker_vm_apps_src_dir ~ '/' ~ item ~ '/app.yml') | from_yaml }}"
+    _meta: "{{ {'name': item, 'enabled': true} | combine(_raw | default({}, true)) }}"
+  loop: "{{ _candidates }}"
+  delegate_to: localhost
+  run_once: true
+  check_mode: false
+
+- name: Compute desired apps (enabled=true)
+  ansible.builtin.set_fact:
+    desired_apps: >-
+      {{ (_apps_meta | default([]))
+         | selectattr('enabled')
+         | map(attribute='name') | list | sort }}
+
+- name: Ensure dest dir exists on host
+  ansible.builtin.file:
+    path: "{{ docker_vm_apps_dest_dir }}"
+    state: directory
+    mode: "0755"
+  when: mode == 'apply'
+
+- name: Discover existing apps on host
+  ansible.builtin.find:
+    paths: "{{ docker_vm_apps_dest_dir }}"
+    file_type: directory
+    depth: 1
+  register: _dest_dirs
+  failed_when: false
+  check_mode: false
+
+- name: Compute existing apps
+  ansible.builtin.set_fact:
+    existing_apps: >-
+      {{ (_dest_dirs.files | default([]))
+         | map(attribute='path') | map('basename') | sort | list }}
+
+- name: Compute diff
+  ansible.builtin.set_fact:
+    apps_to_create: "{{ desired_apps | difference(existing_apps) }}"
+    apps_to_update: "{{ desired_apps | intersect(existing_apps) }}"
+    apps_to_delete: "{{ existing_apps | difference(desired_apps) }}"
+
+- name: Drift report (docker_vm)
+  ansible.builtin.debug:
+    msg:
+      - "host: {{ inventory_hostname }}  mode: {{ mode }}"
+      - "+ to-create: {{ apps_to_create }}"
+      - "~ to-update: {{ apps_to_update }}"
+      - "- to-delete: {{ apps_to_delete }}"
+      - "= unchanged: {{ apps_to_update | difference(apps_to_create) | difference(apps_to_delete) }}"
+
+- name: Fail in plan mode if drift exists (only when explicitly requested)
+  ansible.builtin.fail:
+    msg: "drift detected; rerun with mode=apply to reconcile"
+  when:
+    - mode == 'plan'
+    - fail_on_drift | default(false) | bool
+    - (apps_to_create | length + apps_to_delete | length) > 0
+
+- name: APPLY -> sync, create, update
+  when: mode == 'apply'
+  block:
+    - name: Rsync app directory to host
+      ansible.posix.synchronize:
+        src: "{{ docker_vm_apps_src_dir }}/{{ item }}/"
+        dest: "{{ docker_vm_apps_dest_dir }}/{{ item }}/"
+        delete: true
+        recursive: true
+        rsync_opts:
+          - "--exclude=.git"
+          - "--exclude=.DS_Store"
+          # Encrypted .env stays on the workstation; the next task writes the
+          # decrypted body to the host. Without this exclude rsync would ship
+          # the ciphertext, which docker-compose can't read.
+          - "--exclude=.env"
+      loop: "{{ desired_apps }}"
+
+    - name: Write decrypted .env onto host (when the repo has one)
+      ansible.builtin.copy:
+        content: "{{ lookup('file', docker_vm_apps_src_dir ~ '/' ~ item ~ '/.env') }}"
+        dest: "{{ docker_vm_apps_dest_dir }}/{{ item }}/.env"
+        mode: "0600"
+      loop: "{{ desired_apps }}"
+      when: (docker_vm_apps_src_dir ~ '/' ~ item ~ '/.env') is exists
+      no_log: true
+
+    - name: Bring up compose project
+      community.docker.docker_compose_v2:
+        project_src: "{{ docker_vm_apps_dest_dir }}/{{ item }}"
+        project_name: "{{ item }}"
+        files:
+          - compose.yml
+        state: present
+        remove_orphans: true
+        pull: missing
+      loop: "{{ desired_apps }}"
+
+- name: APPLY -> tear down orphans
+  when:
+    - mode == 'apply'
+    - apps_to_delete | length > 0
+  block:
+    - name: docker compose down for orphans
+      community.docker.docker_compose_v2:
+        project_src: "{{ docker_vm_apps_dest_dir }}/{{ item }}"
+        project_name: "{{ item }}"
+        files:
+          - compose.yml
+        state: absent
+        remove_volumes: "{{ docker_vm_prune_volumes | bool }}"
+      loop: "{{ apps_to_delete }}"
+      failed_when: false
+
+    - name: Remove orphan directories
+      ansible.builtin.file:
+        path: "{{ docker_vm_apps_dest_dir }}/{{ item }}"
+        state: absent
+      loop: "{{ apps_to_delete }}"
+
+- name: Plan-mode notice
+  ansible.builtin.debug:
+    msg: "[plan] no changes applied. Re-run with -e mode=apply to reconcile."
+  when: mode != 'apply'

@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Refuse to commit a cleartext `.env` file. Activated by bootstrap.sh via
+# `git config core.hooksPath .githooks`.
+
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+# `git diff --cached --name-only -z` for staged adds/modifies. Filter to .env
+# basenames, exclude .env.example. `--diff-filter=AM` skips deletions.
+mapfile -d '' staged < <(
+  git diff --cached --name-only -z --diff-filter=AM | \
+    while IFS= read -r -d '' f; do
+      base="$(basename -- "$f")"
+      [[ "$base" == ".env" ]] && printf '%s\0' "$f"
+    done
+)
+
+if (( ${#staged[@]} == 0 )); then
+  exit 0
+fi
+
+python3 scripts/check_envs_encrypted.py "${staged[@]}"

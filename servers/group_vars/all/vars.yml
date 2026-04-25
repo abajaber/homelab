@@ -1,0 +1,5 @@
+---
+# Repo-wide constants. Auto-loaded by Ansible because group_vars/all/ is
+# adjacent to the inventory file (hosts.yml).
+homelab_managed_by: homelab-repo
+homelab_managed_marker: "managed-by: {{ homelab_managed_by }}"

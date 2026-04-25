@@ -1,0 +1,145 @@
+---
+# Discover docker-compose projects already running on the Docker VM and write
+# `servers/docker-vm/apps/<name>/{app.yml,compose.yml}` for those not yet in
+# the repo.
+#
+# Read-only on the server: this never writes to the VM. Adoption happens the
+# next time docker_vm_sync.yml runs in apply mode — compose v2 reconciles by
+# project name, so the running containers stay up.
+#
+# Re-running is safe because apps already present in the repo are skipped.
+#
+# Caveat: the imported compose.yml is the *rendered* form (`docker compose
+# config --no-interpolate`), not the original source files. Multi-file
+# overrides are merged. Manually-set anchors and comments are lost.
+
+- name: Import docker-compose projects from docker-vm into repo
+  hosts: docker-vm
+  gather_facts: false
+  vars:
+    repo_apps_dir: "{{ playbook_dir }}/../servers/{{ inventory_hostname }}/apps"
+  pre_tasks:
+    - name: Load per-host vars
+      ansible.builtin.include_vars: "{{ playbook_dir }}/../servers/{{ inventory_hostname }}/vars.yml"
+    - name: Load per-host vault
+      ansible.builtin.include_vars: "{{ playbook_dir }}/../servers/{{ inventory_hostname }}/vault.yml"
+
+  tasks:
+    - name: List compose projects on host (incl. stopped)
+      ansible.builtin.command: docker compose ls --all --format json
+      register: _ls
+      changed_when: false
+
+    - name: Parse project list
+      ansible.builtin.set_fact:
+        _projects_raw: "{{ _ls.stdout | from_json }}"
+
+    - name: Filter to projects that report a config file
+      ansible.builtin.set_fact:
+        _projects: >-
+          {{ _projects_raw
+             | selectattr('ConfigFiles', 'defined')
+             | rejectattr('ConfigFiles', 'equalto', '')
+             | list }}
+
+    - name: List apps already in repo
+      ansible.builtin.find:
+        paths: "{{ repo_apps_dir }}"
+        file_type: directory
+        depth: 1
+      register: _existing_repo_apps
+      delegate_to: localhost
+      run_once: true
+      check_mode: false
+
+    - name: Compute already-in-repo names
+      ansible.builtin.set_fact:
+        _already_in_repo: "{{ _existing_repo_apps.files | map(attribute='path') | map('basename') | list }}"
+
+    - name: Pick projects to import
+      ansible.builtin.set_fact:
+        _to_import: >-
+          {{ _projects | rejectattr('Name', 'in', _already_in_repo) | list }}
+
+    - name: Import report
+      ansible.builtin.debug:
+        msg:
+          - "host: {{ inventory_hostname }}"
+          - "projects on host:  {{ _projects | map(attribute='Name') | list }}"
+          - "= already-in-repo: {{ _projects | map(attribute='Name') | list | intersect(_already_in_repo) }}"
+          - "+ to-import:       {{ _to_import | map(attribute='Name') | list }}"
+
+    - name: Render and write repo files
+      when: _to_import | length > 0
+      block:
+        - name: Render rendered-compose per project
+          ansible.builtin.shell: |
+            set -euo pipefail
+            files=""
+            IFS=',' read -ra parts <<< "{{ item.ConfigFiles }}"
+            for f in "${parts[@]}"; do files="$files -f $f"; done
+            docker compose -p {{ item.Name | quote }} $files config --no-interpolate
+          args:
+            executable: /bin/bash
+          loop: "{{ _to_import }}"
+          loop_control:
+            label: "{{ item.Name }}"
+          register: _configs
+          changed_when: false
+
+        - name: Ensure repo app directory exists
+          ansible.builtin.file:
+            path: "{{ repo_apps_dir }}/{{ item.item.Name }}"
+            state: directory
+            mode: "0755"
+          loop: "{{ _configs.results }}"
+          loop_control:
+            label: "{{ item.item.Name }}"
+          delegate_to: localhost
+          run_once: true
+
+        - name: Write app.yml
+          ansible.builtin.copy:
+            dest: "{{ repo_apps_dir }}/{{ item.item.Name }}/app.yml"
+            content: |
+              ---
+              name: {{ item.item.Name }}
+              enabled: true
+            mode: "0644"
+          loop: "{{ _configs.results }}"
+          loop_control:
+            label: "{{ item.item.Name }}"
+          delegate_to: localhost
+          run_once: true
+
+        - name: Write compose.yml
+          ansible.builtin.copy:
+            dest: "{{ repo_apps_dir }}/{{ item.item.Name }}/compose.yml"
+            content: "{{ item.stdout }}\n"
+            mode: "0644"
+          loop: "{{ _configs.results }}"
+          loop_control:
+            label: "{{ item.item.Name }}"
+          delegate_to: localhost
+          run_once: true
+
+        - name: Warn on likely secrets in imported composes
+          ansible.builtin.command:
+            argv: >-
+              {{
+                [playbook_dir ~ '/../.venv/bin/python3',
+                 playbook_dir ~ '/../scripts/scan_compose_secrets.py']
+                + (_to_import | map(attribute='Name')
+                   | map('regex_replace', '^(.*)$',
+                          repo_apps_dir ~ '/\1/compose.yml')
+                   | list)
+              }}
+          register: _secret_scan
+          changed_when: false
+          delegate_to: localhost
+          run_once: true
+
+        - name: Print secret-scan output
+          ansible.builtin.debug:
+            msg: "{{ _secret_scan.stdout_lines }}"
+          when: (_secret_scan.stdout_lines | default([])) | length > 0

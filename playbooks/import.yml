@@ -1,0 +1,16 @@
+---
+# Top-level import: discover apps on every server that aren't yet in this repo
+# and (in apply mode) write the corresponding files under
+# `servers/<host>/apps/<name>/`.
+#
+# Default behavior is import-only — repo files are written but nothing on the
+# servers is changed. To also stamp the `managed-by:` marker on TrueNAS apps
+# so the next sync treats them as managed, pass `-e adopt=true`.
+#
+# Usage:
+#   ansible-playbook playbooks/import.yml                       # plan
+#   ansible-playbook playbooks/import.yml -e mode=apply         # write repo files
+#   ansible-playbook playbooks/import.yml -e mode=apply -e adopt=true   # also adopt on TrueNAS
+
+- import_playbook: docker_vm_import.yml
+- import_playbook: truenas_import.yml

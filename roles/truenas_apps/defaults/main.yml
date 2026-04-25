@@ -1,0 +1,4 @@
+---
+truenas_apps_dir: "{{ playbook_dir }}/../servers/{{ inventory_hostname }}/apps"
+truenas_dataset_root: tank/apps
+mode: plan

@@ -1,0 +1,11 @@
+---
+- name: Reconcile docker-vm apps with repo
+  hosts: docker-vm
+  gather_facts: false
+  pre_tasks:
+    - name: Load per-host vars
+      ansible.builtin.include_vars: "{{ playbook_dir }}/../servers/{{ inventory_hostname }}/vars.yml"
+    - name: Load per-host vault
+      ansible.builtin.include_vars: "{{ playbook_dir }}/../servers/{{ inventory_hostname }}/vault.yml"
+  roles:
+    - docker_compose_sync

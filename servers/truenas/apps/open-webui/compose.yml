@@ -1,0 +1,290 @@
+configs:
+  permissions_actions_data:
+    content: '[{"read_only": false, "mount_path": "/mnt/permission/redis_redis_data",
+      "is_temporary": true, "identifier": "redis_redis_data", "recursive": true, "mode":
+      "check", "uid": 568, "gid": 568, "chmod": null}]'
+services:
+  open-webui:
+    cap_drop:
+    - ALL
+    depends_on:
+      permissions:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4096M
+        reservations:
+          devices:
+          - capabilities:
+            - gpu
+            device_ids:
+            - GPU-53c1e32f-a0d4-3a75-aed3-036ea12cd90a
+            driver: nvidia
+    environment:
+      GID: '568'
+      GROUP_ID: '568'
+      HOST: 0.0.0.0
+      NVIDIA_DRIVER_CAPABILITIES: all
+      NVIDIA_VISIBLE_DEVICES: GPU-53c1e32f-a0d4-3a75-aed3-036ea12cd90a
+      PGID: '568'
+      PORT: '31028'
+      PUID: '568'
+      REDIS_URL: redis://default:${WEBUI_REDIS_PASSWORD}@redis:6379
+      TZ: America/Montreal
+      UID: '568'
+      UMASK: '002'
+      UMASK_SET: '002'
+      USER_ID: '568'
+      WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY}
+    extra_hosts:
+      host.docker.internal: host-gateway
+    group_add:
+    - 44
+    - 107
+    - 568
+    healthcheck:
+      interval: 30s
+      retries: 5
+      start_interval: 2s
+      start_period: 15s
+      test:
+      - CMD
+      - curl
+      - --request
+      - GET
+      - --silent
+      - --output
+      - /dev/null
+      - --show-error
+      - --fail
+      - http://127.0.0.1:31028/health
+      timeout: 5s
+    image: ghcr.io/open-webui/open-webui:0.7.2-cuda
+    platform: linux/amd64
+    ports:
+    - mode: ingress
+      protocol: tcp
+      published: 31028
+      target: 31028
+    privileged: false
+    restart: unless-stopped
+    security_opt:
+    - no-new-privileges=true
+    stdin_open: false
+    tty: false
+    volumes:
+    - bind:
+        create_host_path: false
+        propagation: rprivate
+      read_only: false
+      source: /mnt/.ix-apps/app_mounts/open-webui/data
+      target: /app/backend/data
+      type: bind
+    - bind:
+        create_host_path: false
+        propagation: rprivate
+      read_only: false
+      source: /mnt/.ix-apps/app_mounts/open-webui/ollama
+      target: /root/.ollama
+      type: bind
+  permissions:
+    cap_add:
+    - CHOWN
+    - DAC_OVERRIDE
+    - FOWNER
+    cap_drop:
+    - ALL
+    configs:
+    - mode: 320
+      source: permissions_actions_data
+      target: /script/actions.json
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1024M
+    entrypoint:
+    - python3
+    - /script/permissions.py
+    environment:
+      GID: '568'
+      GROUP_ID: '568'
+      NVIDIA_DRIVER_CAPABILITIES: all
+      NVIDIA_VISIBLE_DEVICES: GPU-53c1e32f-a0d4-3a75-aed3-036ea12cd90a
+      PGID: '568'
+      PUID: '568'
+      TZ: America/Montreal
+      UID: '568'
+      UMASK: '002'
+      UMASK_SET: '002'
+      USER_ID: '568'
+    group_add:
+    - 568
+    healthcheck:
+      disable: true
+    image: ixsystems/container-utils:1.0.2
+    network_mode: none
+    platform: linux/amd64
+    privileged: false
+    restart: on-failure:1
+    security_opt:
+    - no-new-privileges=true
+    stdin_open: false
+    tty: false
+    user: 0:0
+    volumes:
+    - read_only: false
+      source: redis_data
+      target: /mnt/permission/redis_redis_data
+      type: volume
+      volume:
+        nocopy: false
+  redis:
+    cap_drop:
+    - ALL
+    command:
+    - --port
+    - '6379'
+    - --requirepass
+    - ${WEBUI_REDIS_PASSWORD}
+    depends_on:
+      permissions:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4096M
+    environment:
+      GID: '568'
+      GROUP_ID: '568'
+      NVIDIA_DRIVER_CAPABILITIES: all
+      NVIDIA_VISIBLE_DEVICES: GPU-53c1e32f-a0d4-3a75-aed3-036ea12cd90a
+      PGID: '568'
+      PUID: '568'
+      REDIS_PASSWORD: ${WEBUI_REDIS_PASSWORD}
+      TZ: America/Montreal
+      UID: '568'
+      UMASK: '002'
+      UMASK_SET: '002'
+      USER_ID: '568'
+    group_add:
+    - 568
+    healthcheck:
+      interval: 30s
+      retries: 5
+      start_interval: 2s
+      start_period: 15s
+      test:
+      - CMD
+      - redis-cli
+      - -h
+      - 127.0.0.1
+      - -p
+      - '6379'
+      - -a
+      - ${WEBUI_REDIS_PASSWORD}
+      - ping
+      timeout: 5s
+    image: valkey/valkey:9.0.2
+    platform: linux/amd64
+    privileged: false
+    restart: unless-stopped
+    security_opt:
+    - no-new-privileges=true
+    stdin_open: false
+    stop_grace_period: 60s
+    tty: false
+    user: 568:568
+    volumes:
+    - read_only: false
+      source: redis_data
+      target: /data
+      type: volume
+      volume:
+        nocopy: false
+volumes:
+  redis_data: {}
+x-notes: '# Open WebUI
+
+
+  ## Security
+
+
+  **Read the following security precautions to ensure that you wish to continue using
+  this application.**
+
+
+  ---
+
+
+  ### Container: [open-webui]
+
+
+  #### Running user/group(s)
+
+
+  - User: unknown
+
+  - Group: unknown
+
+  - Supplementary Groups: apps
+
+
+  ---
+
+
+  ### Container: [redis]
+
+
+  #### Running user/group(s)
+
+
+  - User: 568
+
+  - Group: 568
+
+  - Supplementary Groups: apps
+
+
+  ---
+
+
+  ### Container: [permissions]
+
+
+  **This container is short-lived.**
+
+
+  #### Running user/group(s)
+
+
+  - User: root
+
+  - Group: root
+
+  - Supplementary Groups: apps
+
+
+  ---
+
+
+  ## Bug Reports and Feature Requests
+
+
+  If you find a bug in this app or have an idea for a new feature, please file an
+  issue at
+
+  https://github.com/truenas/apps
+
+  '
+x-portals:
+- host: openwebui.bajaber.ca
+  name: Web UI
+  path: /
+  port: 443
+  scheme: https

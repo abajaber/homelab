@@ -1,0 +1,5 @@
+---
+docker_vm_apps_src_dir: "{{ playbook_dir }}/../servers/{{ inventory_hostname }}/apps"
+docker_vm_apps_dest_dir: /opt/homelab/apps
+docker_vm_prune_volumes: false
+mode: plan

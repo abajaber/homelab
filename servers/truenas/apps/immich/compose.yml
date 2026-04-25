@@ -1,0 +1,480 @@
+configs:
+  permissions_actions_data:
+    content: '[{"read_only": false, "mount_path": "/mnt/permission/pgvecto_postgres_data",
+      "is_temporary": false, "identifier": "pgvecto_postgres_data", "recursive": false,
+      "mode": "check", "uid": 999, "gid": 999, "chmod": null}, {"read_only": false,
+      "mount_path": "/mnt/permission/redis_redis_data", "is_temporary": true, "identifier":
+      "redis_redis_data", "recursive": true, "mode": "check", "uid": 568, "gid": 568,
+      "chmod": null}, {"read_only": false, "mount_path": "/mnt/permission/-config",
+      "is_temporary": true, "identifier": "-config", "recursive": true, "mode": "check",
+      "uid": 568, "gid": 568, "chmod": null}, {"read_only": false, "mount_path": "/mnt/permission/ml-cache",
+      "is_temporary": true, "identifier": "ml-cache", "recursive": true, "mode": "check",
+      "uid": 568, "gid": 568, "chmod": null}]'
+networks:
+  ix-internal-immich-net:
+    enable_ipv6: false
+    external: false
+    labels:
+      tn.network.internal: 'true'
+  proxy:
+    external: true
+    name: proxy
+services:
+  machine-learning:
+    cap_drop:
+    - ALL
+    depends_on:
+      permissions:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4096M
+        reservations:
+          devices:
+          - capabilities:
+            - gpu
+            device_ids:
+            - GPU-53c1e32f-a0d4-3a75-aed3-036ea12cd90a
+            driver: nvidia
+    environment:
+      GID: '568'
+      GROUP_ID: '568'
+      HF_HOME: /mlcache
+      IMMICH_LOG_LEVEL: log
+      IMMICH_PORT: '32002'
+      MACHINE_LEARNING_CACHE_FOLDER: /mlcache
+      MPLCONFIGDIR: /mlcache/matplotlib
+      NODE_ENV: production
+      NVIDIA_DRIVER_CAPABILITIES: all
+      NVIDIA_VISIBLE_DEVICES: GPU-53c1e32f-a0d4-3a75-aed3-036ea12cd90a
+      PGID: '568'
+      PUID: '568'
+      TRANSFORMERS_CACHE: /mlcache
+      TZ: America/Los_Angeles
+      UID: '568'
+      UMASK: '002'
+      UMASK_SET: '002'
+      USER_ID: '568'
+    group_add:
+    - 44
+    - 107
+    - 568
+    healthcheck:
+      interval: 30s
+      retries: 5
+      start_interval: 2s
+      start_period: 15s
+      test:
+      - CMD
+      - python3
+      - healthcheck.py
+      timeout: 5s
+    image: ghcr.io/immich-app/immich-machine-learning:v2.7.4
+    networks:
+      ix-internal-immich-net: {}
+    platform: linux/amd64
+    privileged: false
+    restart: unless-stopped
+    security_opt:
+    - no-new-privileges=true
+    stdin_open: false
+    tty: false
+    user: 568:568
+    volumes:
+    - read_only: false
+      source: ml-cache
+      target: /mlcache
+      type: volume
+      volume:
+        nocopy: false
+  permissions:
+    cap_add:
+    - CHOWN
+    - DAC_OVERRIDE
+    - FOWNER
+    cap_drop:
+    - ALL
+    configs:
+    - mode: 320
+      source: permissions_actions_data
+      target: /script/actions.json
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1024M
+    entrypoint:
+    - python3
+    - /script/permissions.py
+    environment:
+      GID: '568'
+      GROUP_ID: '568'
+      NVIDIA_DRIVER_CAPABILITIES: all
+      NVIDIA_VISIBLE_DEVICES: GPU-53c1e32f-a0d4-3a75-aed3-036ea12cd90a
+      PGID: '568'
+      PUID: '568'
+      TZ: America/Los_Angeles
+      UID: '568'
+      UMASK: '002'
+      UMASK_SET: '002'
+      USER_ID: '568'
+    group_add:
+    - 568
+    healthcheck:
+      disable: true
+    image: ixsystems/container-utils:1.0.2
+    network_mode: none
+    platform: linux/amd64
+    privileged: false
+    restart: on-failure:1
+    security_opt:
+    - no-new-privileges=true
+    stdin_open: false
+    tty: false
+    user: 0:0
+    volumes:
+    - read_only: false
+      source: cli-temp-storage
+      target: /mnt/permission/-config
+      type: volume
+      volume:
+        nocopy: false
+    - read_only: false
+      source: ml-cache
+      target: /mnt/permission/ml-cache
+      type: volume
+      volume:
+        nocopy: false
+    - bind:
+        create_host_path: false
+        propagation: rprivate
+      read_only: false
+      source: /mnt/redsea/apps/immich/database
+      target: /mnt/permission/pgvecto_postgres_data
+      type: bind
+    - read_only: false
+      source: redis-data
+      target: /mnt/permission/redis_redis_data
+      type: volume
+      volume:
+        nocopy: false
+  pgvecto:
+    cap_drop:
+    - ALL
+    depends_on:
+      permissions:
+        condition: service_completed_successfully
+      pgvecto_upgrade:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4096M
+    environment:
+      DB_STORAGE_TYPE: HDD
+      GID: '568'
+      GROUP_ID: '568'
+      NVIDIA_DRIVER_CAPABILITIES: all
+      NVIDIA_VISIBLE_DEVICES: GPU-53c1e32f-a0d4-3a75-aed3-036ea12cd90a
+      PGDATA: /var/lib/postgresql/18/docker
+      PGID: '568'
+      PGPORT: '5432'
+      POSTGRES_DB: immich
+      POSTGRES_PASSWORD: ${IMMICH_DB_PASSWORD}
+      POSTGRES_USER: immich
+      PUID: '568'
+      TZ: America/Los_Angeles
+      UID: '568'
+      UMASK: '002'
+      UMASK_SET: '002'
+      USER_ID: '568'
+    group_add:
+    - 568
+    healthcheck:
+      interval: 30s
+      retries: 5
+      start_interval: 2s
+      start_period: 15s
+      test:
+      - CMD
+      - pg_isready
+      - -h
+      - 127.0.0.1
+      - -p
+      - '5432'
+      - -U
+      - immich
+      - -d
+      - immich
+      timeout: 5s
+    image: ghcr.io/immich-app/postgres:18-vectorchord0.5.3
+    networks:
+      ix-internal-immich-net: {}
+    platform: linux/amd64
+    privileged: false
+    restart: unless-stopped
+    security_opt:
+    - no-new-privileges=true
+    shm_size: 256M
+    stdin_open: false
+    stop_grace_period: 60s
+    tty: false
+    user: 999:999
+    volumes:
+    - bind:
+        create_host_path: false
+        propagation: rprivate
+      read_only: false
+      source: /mnt/redsea/apps/immich/database
+      target: /var/lib/postgresql
+      type: bind
+  pgvecto_upgrade:
+    cap_drop:
+    - ALL
+    depends_on:
+      permissions:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1024M
+    entrypoint:
+    - /bin/bash
+    - -c
+    - /upgrade.sh
+    environment:
+      GID: '568'
+      GROUP_ID: '568'
+      NVIDIA_DRIVER_CAPABILITIES: all
+      NVIDIA_VISIBLE_DEVICES: GPU-53c1e32f-a0d4-3a75-aed3-036ea12cd90a
+      PGDATA: /var/lib/postgresql/18/docker
+      PGID: '568'
+      PGPORT: '5432'
+      POSTGRES_DB: immich
+      POSTGRES_PASSWORD: ${IMMICH_DB_PASSWORD}
+      POSTGRES_USER: immich
+      PUID: '568'
+      TARGET_VERSION: '18'
+      TZ: America/Los_Angeles
+      UID: '568'
+      UMASK: '002'
+      UMASK_SET: '002'
+      USER_ID: '568'
+    group_add:
+    - 568
+    healthcheck:
+      disable: true
+    image: ixsystems/postgres-upgrade:1.2.1
+    network_mode: none
+    platform: linux/amd64
+    privileged: false
+    restart: on-failure:1
+    security_opt:
+    - no-new-privileges=true
+    stdin_open: false
+    tty: false
+    user: 999:999
+    volumes:
+    - bind:
+        create_host_path: false
+        propagation: rprivate
+      read_only: false
+      source: /mnt/redsea/apps/immich/database
+      target: /var/lib/postgresql
+      type: bind
+  redis:
+    cap_drop:
+    - ALL
+    command:
+    - --port
+    - '6379'
+    - --requirepass
+    - ${IMMICH_REDIS_PASSWORD}
+    depends_on:
+      permissions:
+        condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4096M
+    environment:
+      GID: '568'
+      GROUP_ID: '568'
+      NVIDIA_DRIVER_CAPABILITIES: all
+      NVIDIA_VISIBLE_DEVICES: GPU-53c1e32f-a0d4-3a75-aed3-036ea12cd90a
+      PGID: '568'
+      PUID: '568'
+      REDIS_PASSWORD: ${IMMICH_REDIS_PASSWORD}
+      TZ: America/Los_Angeles
+      UID: '568'
+      UMASK: '002'
+      UMASK_SET: '002'
+      USER_ID: '568'
+    group_add:
+    - 568
+    healthcheck:
+      interval: 30s
+      retries: 5
+      start_interval: 2s
+      start_period: 15s
+      test:
+      - CMD
+      - redis-cli
+      - -h
+      - 127.0.0.1
+      - -p
+      - '6379'
+      - -a
+      - ${IMMICH_REDIS_PASSWORD}
+      - ping
+      timeout: 5s
+    image: valkey/valkey:9.0.3
+    networks:
+      ix-internal-immich-net: {}
+    platform: linux/amd64
+    privileged: false
+    restart: unless-stopped
+    security_opt:
+    - no-new-privileges=true
+    stdin_open: false
+    stop_grace_period: 60s
+    tty: false
+    user: 568:568
+    volumes:
+    - read_only: false
+      source: redis-data
+      target: /data
+      type: volume
+      volume:
+        nocopy: false
+  server:
+    cap_drop:
+    - ALL
+    depends_on:
+      permissions:
+        condition: service_completed_successfully
+      pgvecto:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4096M
+        reservations:
+          devices:
+          - capabilities:
+            - gpu
+            device_ids:
+            - GPU-53c1e32f-a0d4-3a75-aed3-036ea12cd90a
+            driver: nvidia
+    environment:
+      DB_DATABASE_NAME: immich
+      DB_HOSTNAME: pgvecto
+      DB_PASSWORD: ${IMMICH_DB_PASSWORD}
+      DB_PORT: '5432'
+      DB_USERNAME: immich
+      GID: '568'
+      GROUP_ID: '568'
+      IMMICH_API_METRICS_PORT: '30363'
+      IMMICH_LOG_LEVEL: log
+      IMMICH_MACHINE_LEARNING_ENABLED: 'true'
+      IMMICH_MACHINE_LEARNING_URL: http://machine-learning:32002
+      IMMICH_MICROSERVICES_METRICS_PORT: '30364'
+      IMMICH_PORT: '30041'
+      NODE_ENV: production
+      NVIDIA_DRIVER_CAPABILITIES: all
+      NVIDIA_VISIBLE_DEVICES: GPU-53c1e32f-a0d4-3a75-aed3-036ea12cd90a
+      PGID: '568'
+      PUID: '568'
+      REDIS_DBINDEX: '0'
+      REDIS_HOSTNAME: redis
+      REDIS_PASSWORD: ${IMMICH_REDIS_PASSWORD}
+      REDIS_PORT: '6379'
+      TZ: America/Los_Angeles
+      UID: '568'
+      UMASK: '002'
+      UMASK_SET: '002'
+      USER_ID: '568'
+    expose:
+    - 30041
+    group_add:
+    - 44
+    - 107
+    - 568
+    healthcheck:
+      interval: 30s
+      retries: 5
+      start_interval: 2s
+      start_period: 15s
+      test:
+      - CMD
+      - immich-healthcheck
+      timeout: 5s
+    image: ghcr.io/immich-app/immich-server:v2.7.4
+    labels:
+      traefik.docker.network: proxy
+      traefik.enable: 'true'
+      traefik.http.routers.immich.entrypoints: websecure
+      traefik.http.routers.immich.rule: Host(`immich.bajaber.ca`)
+      traefik.http.routers.immich.tls: 'true'
+      traefik.http.routers.immich.tls.certresolver: cloudflare
+      traefik.http.services.immich.loadbalancer.server.port: '30041'
+    networks:
+      ix-internal-immich-net: {}
+      proxy: {}
+    platform: linux/amd64
+    privileged: false
+    restart: unless-stopped
+    security_opt:
+    - no-new-privileges=true
+    stdin_open: false
+    tty: false
+    user: 568:568
+    volumes:
+    - read_only: false
+      source: cli-temp-storage
+      target: /.config
+      type: volume
+      volume:
+        nocopy: false
+    - bind:
+        create_host_path: false
+        propagation: rprivate
+      read_only: false
+      source: /mnt/redsea/apps/immich/data
+      target: /data
+      type: bind
+volumes:
+  cli-temp-storage: {}
+  ml-cache: {}
+  redis-data: {}
+x-notes: '# Immich ## Security **Read the following security precautions to ensure
+  that you wish to continue using this application.** --- ### Container: [machine-learning]
+  #### Joined networks - ix-internal-immich-net #### Running user/group(s) - User:
+  568 - Group: 568 - Supplementary Groups: apps --- ### Container: [pgvecto] ####
+  Joined networks - ix-internal-immich-net #### Running user/group(s) - User: 999
+  - Group: 999 - Supplementary Groups: apps --- ### Container: [redis] #### Joined
+  networks - ix-internal-immich-net #### Running user/group(s) - User: 568 - Group:
+  568 - Supplementary Groups: apps --- ### Container: [server] #### Joined networks
+  - ix-internal-immich-net #### Running user/group(s) - User: 568 - Group: 568 - Supplementary
+  Groups: apps --- ### Container: [permissions] **This container is short-lived.**
+  #### Running user/group(s) - User: root - Group: root - Supplementary Groups: apps
+  --- ### Container: [pgvecto_upgrade] **This container is short-lived.** #### Running
+  user/group(s) - User: 999 - Group: 999 - Supplementary Groups: apps --- ## Bug Reports
+  and Feature Requests If you find a bug in this app or have an idea for a new feature,
+  please file an issue at https://github.com/truenas/apps
+
+  '
+x-portals:
+- host: 0.0.0.0
+  name: Web UI
+  path: /
+  port: 30041
+  scheme: http

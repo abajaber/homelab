@@ -1,0 +1,11 @@
+---
+# Top-level "what would change" — runs both server-type playbooks in plan mode.
+# No state on any server is modified.
+
+- import_playbook: docker_vm_sync.yml
+  vars:
+    mode: plan
+
+- import_playbook: truenas_sync.yml
+  vars:
+    mode: plan
