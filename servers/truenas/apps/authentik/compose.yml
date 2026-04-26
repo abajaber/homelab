@@ -24,6 +24,7 @@ services:
           cpus: '2'
           memory: 4096M
     environment:
+      AUTHENTIK_EXTERNAL_HOST: https://auth.bajaber.ca
       AUTHENTIK_LISTEN__HTTP: 0.0.0.0:30140
       AUTHENTIK_LISTEN__HTTPS: 0.0.0.0:30141
       AUTHENTIK_POSTGRESQL__HOST: postgres
@@ -70,6 +71,9 @@ services:
       traefik.http.routers.authentik.tls: 'true'
       traefik.http.routers.authentik.tls.certresolver: cloudflare
       traefik.http.services.authentik.loadbalancer.server.port: '30140'
+      traefik.http.middlewares.authentik.forwardauth.address: http://authentik-server:30140/outpost.goauthentik.io/auth/traefik
+      traefik.http.middlewares.authentik.forwardauth.trustForwardHeader: 'true'
+      traefik.http.middlewares.authentik.forwardauth.authResponseHeaders: X-authentik-username,X-authentik-groups,X-authentik-email,X-authentik-name,X-authentik-uid
     networks:
     - default
     - proxy
