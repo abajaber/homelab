@@ -1,0 +1,248 @@
+---
+# Paperless-ngx + Postgres + Redis + Gotenberg + Tika, plus the
+# paperless-ai (clusterzx, tagging) and paperless-gpt (icereed, OCR/vision)
+# companions, which call Ollama for local LLM inference.
+#
+# Pre-flight (one-time, manual): the `ai-net` external network must exist on
+# the host, since the reconciler can't manage networks today (CLAUDE.md
+# "Reconciler extension hooks #3"). Run from TrueNAS UI -> System Settings
+# -> Shell:  docker network create ai-net
+#
+# Bring-up is two-phase because the AI companions need a paperless API token
+# that can only be minted after a user logs in:
+#   1) Apply once with paperless-ai / paperless-gpt commented out (default
+#      shape of this file). Log in to https://paperless.bajaber.ca, create
+#      admin user, mint an API token at Settings -> API tokens.
+#   2) Drop the token into .env (PAPERLESS_API_TOKEN), uncomment the two
+#      companion services + their volumes, re-apply.
+#
+# SSO chain is the same `authentik@docker` middleware sonarr/radarr/qbit use,
+# defined in servers/truenas/apps/authentik/compose.yml:73-75. paperless
+# additionally trusts X-authentik-username so each Authentik user gets a
+# dedicated paperless user with its own ACLs (multi-user preserved).
+networks:
+  proxy:
+    external: true
+    name: proxy
+  ai-net:
+    external: true
+    name: ai-net
+
+services:
+  # One-shot: chown the postgres dataset to 999:999 so the official postgres
+  # image can start. Runs to completion, then exits; subsequent applies are
+  # idempotent.
+  init-perms:
+    image: alpine:3
+    restart: "no"
+    command:
+      - sh
+      - -c
+      - "chown -R 999:999 /var/lib/postgresql && chmod 770 /var/lib/postgresql"
+    volumes:
+      - /mnt/redsea/apps/paperless-ngx/db:/var/lib/postgresql
+
+  # One-shot: wipe stale locks left over from killed startups. paperless
+  # creates `migration_lock` in /data while migrations are running and removes
+  # it on success -- a `docker compose down` mid-migration leaves it behind,
+  # blocking every future start. Whoosh index also has its own *.lock files.
+  # Idempotent: rm -f no-ops if files don't exist.
+  clean-locks:
+    image: alpine:3
+    restart: "no"
+    volumes:
+      - /mnt/redsea/apps/paperless-ngx/data:/data
+    command:
+      - sh
+      - -c
+      - "rm -fv /data/migration_lock /data/index/MAIN.lock /data/index/_MAIN_*.lock 2>/dev/null; rm -fv /data/index/MAIN_WRITELOCK 2>/dev/null; echo locks-cleared"
+
+  db:
+    image: postgres:18
+    container_name: paperless-db
+    restart: unless-stopped
+    depends_on:
+      init-perms:
+        condition: service_completed_successfully
+    environment:
+      - POSTGRES_DB=paperless
+      - POSTGRES_USER=paperless
+      - POSTGRES_PASSWORD=${PAPERLESS_DB_PASSWORD}
+      - TZ=America/toronto
+    volumes:
+      - /mnt/redsea/apps/paperless-ngx/db:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U paperless -d paperless"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: valkey/valkey:9.0.3
+    container_name: paperless-redis
+    restart: unless-stopped
+    command:
+      - --port
+      - "6379"
+      - --requirepass
+      - ${PAPERLESS_REDIS_PASSWORD}
+    environment:
+      - TZ=America/toronto
+    volumes:
+      - /mnt/redsea/apps/paperless-ngx/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${PAPERLESS_REDIS_PASSWORD}", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  gotenberg:
+    image: gotenberg/gotenberg:8.25
+    container_name: paperless-gotenberg
+    restart: unless-stopped
+    command:
+      - gotenberg
+      - --chromium-disable-javascript=true
+      - --chromium-allow-list=file:///tmp/.*
+    environment:
+      - TZ=America/toronto
+
+  tika:
+    image: apache/tika:latest
+    container_name: paperless-tika
+    restart: unless-stopped
+    environment:
+      - TZ=America/toronto
+
+  paperless:
+    image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    container_name: paperless
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      gotenberg:
+        condition: service_started
+      tika:
+        condition: service_started
+      clean-locks:
+        condition: service_completed_successfully
+    environment:
+      - USERMAP_UID=568
+      - USERMAP_GID=568
+      - TZ=America/toronto
+      - PAPERLESS_TIME_ZONE=America/Toronto
+      - PAPERLESS_URL=https://paperless.bajaber.ca
+      - PAPERLESS_REDIS=redis://default:${PAPERLESS_REDIS_PASSWORD}@redis:6379
+      - PAPERLESS_DBHOST=db
+      - PAPERLESS_DBPORT=5432
+      - PAPERLESS_DBNAME=paperless
+      - PAPERLESS_DBUSER=paperless
+      - PAPERLESS_DBPASS=${PAPERLESS_DB_PASSWORD}
+      - PAPERLESS_SECRET_KEY=${PAPERLESS_SECRET_KEY}
+      - PAPERLESS_TIKA_ENABLED=1
+      - PAPERLESS_TIKA_GOTENBERG_ENDPOINT=http://gotenberg:3000
+      - PAPERLESS_TIKA_ENDPOINT=http://tika:9998
+      # SSO: trust X-authentik-username from the Traefik forwardAuth middleware.
+      # The Django request.META key prefixes HTTP_ and uppercases / underscores,
+      # so the X-authentik-username header maps to HTTP_X_AUTHENTIK_USERNAME.
+      - PAPERLESS_ENABLE_HTTP_REMOTE_USER=true
+      - PAPERLESS_HTTP_REMOTE_USER_HEADER_NAME=HTTP_X_AUTHENTIK_USERNAME
+    volumes:
+      - /mnt/redsea/apps/paperless-ngx/data:/usr/src/paperless/data
+      - /mnt/redsea/apps/paperless-ngx/media:/usr/src/paperless/media
+      - /mnt/redsea/apps/paperless-ngx/export:/usr/src/paperless/export
+      - /mnt/redsea/apps/paperless-ngx/consume:/usr/src/paperless/consume
+    networks:
+      - default
+      - proxy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.paperless.rule=Host(`paperless.bajaber.ca`)
+      - traefik.http.routers.paperless.entrypoints=websecure
+      - traefik.http.routers.paperless.tls=true
+      - traefik.http.routers.paperless.tls.certresolver=cloudflare
+      - traefik.http.services.paperless.loadbalancer.server.port=8000
+      - traefik.http.routers.paperless.middlewares=authentik@docker
+
+  # AI companions. Both reach Ollama at http://ollama:11434 over `ai-net`,
+  # and reach paperless at http://paperless:8000 over the compose default
+  # network. PAPERLESS_API_TOKEN must be a real value -- mint one in
+  # paperless UI (Settings -> API Tokens) and `ansible-vault edit` the .env
+  # before applying.
+  paperless-ai:
+    image: clusterzx/paperless-ai:latest
+    container_name: paperless-ai
+    restart: unless-stopped
+    depends_on:
+      paperless:
+        condition: service_started
+    environment:
+      - TZ=America/toronto
+      - PAPERLESS_API_URL=http://paperless:8000/api
+      - PAPERLESS_URL=http://paperless:8000
+      - PAPERLESS_API_TOKEN=${PAPERLESS_API_TOKEN}
+      - PAPERLESS_USERNAME=abajaber
+      - AI_PROVIDER=ollama
+      - OLLAMA_API_URL=http://ollama:11434
+      - OLLAMA_MODEL=gemma4:e4b
+      - SCAN_INTERVAL=*/30 * * * *
+    volumes:
+      - /mnt/redsea/apps/paperless-ngx/ai-data:/app/data
+    networks:
+      - default
+      - proxy
+      - ai-net
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.paperless-ai.rule=Host(`paperless-ai.bajaber.ca`)
+      - traefik.http.routers.paperless-ai.entrypoints=websecure
+      - traefik.http.routers.paperless-ai.tls=true
+      - traefik.http.routers.paperless-ai.tls.certresolver=cloudflare
+      - traefik.http.services.paperless-ai.loadbalancer.server.port=3000
+      - traefik.http.routers.paperless-ai.middlewares=authentik@docker
+
+  paperless-gpt:
+    image: icereed/paperless-gpt:latest
+    container_name: paperless-gpt
+    restart: unless-stopped
+    depends_on:
+      paperless:
+        condition: service_started
+    environment:
+      - TZ=America/toronto
+      - PAPERLESS_BASE_URL=http://paperless:8000
+      - PAPERLESS_API_TOKEN=${PAPERLESS_API_TOKEN}
+      - LLM_PROVIDER=ollama
+      - LLM_MODEL=gemma4:e4b
+      - OLLAMA_HOST=http://ollama:11434
+      - OLLAMA_CONTEXT_LENGTH=8192
+      - TOKEN_LIMIT=1000
+      - LLM_LANGUAGE=English
+      - OCR_PROVIDER=llm
+      - VISION_LLM_PROVIDER=ollama
+      - VISION_LLM_MODEL=gemma4:e4b
+      - AUTO_OCR_TAG=paperless-gpt-ocr-auto
+      - AUTO_TAG=paperless-gpt-auto
+      - MANUAL_TAG=paperless-gpt-manual
+      - PDF_OCR_TAGGING=true
+      - PDF_OCR_COMPLETE_TAG=paperless-gpt-ocr-complete
+    volumes:
+      - /mnt/redsea/apps/paperless-ngx/gpt-prompts:/app/prompts
+    networks:
+      - default
+      - proxy
+      - ai-net
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.paperless-gpt.rule=Host(`paperless-gpt.bajaber.ca`)
+      - traefik.http.routers.paperless-gpt.entrypoints=websecure
+      - traefik.http.routers.paperless-gpt.tls=true
+      - traefik.http.routers.paperless-gpt.tls.certresolver=cloudflare
+      - traefik.http.services.paperless-gpt.loadbalancer.server.port=8080
+      - traefik.http.routers.paperless-gpt.middlewares=authentik@docker
