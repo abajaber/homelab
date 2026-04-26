@@ -1,0 +1,78 @@
+---
+# Standalone Ollama for the homelab. Reachable as http://ollama:11434 from any
+# container that joins the external `ai-net` bridge. No public hostname.
+#
+# Pre-flight: `docker network create ai-net` must exist on the host (run once
+# from TrueNAS UI -> System Settings -> Shell). The reconciler does not manage
+# Docker networks today (CLAUDE.md "Reconciler extension hooks #3").
+#
+# Models persist under /mnt/redsea/apps/ollama/models -- the reconciler creates
+# the dataset on first apply. The `ollama-bootstrap` one-shot below pulls every
+# model in OLLAMA_MODELS_TO_PULL after ollama is healthy; idempotent (Ollama's
+# /api/pull is a no-op if the model is already present). Edit the list and
+# re-apply to add new models.
+networks:
+  ai-net:
+    external: true
+    name: ai-net
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities:
+                - gpu
+              driver: nvidia
+              device_ids:
+                - GPU-53c1e32f-a0d4-3a75-aed3-036ea12cd90a
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434
+      - OLLAMA_KEEP_ALIVE=15m
+      - OLLAMA_MODELS=/models
+      - NVIDIA_VISIBLE_DEVICES=GPU-53c1e32f-a0d4-3a75-aed3-036ea12cd90a
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - TZ=America/toronto
+    volumes:
+      - /mnt/redsea/apps/ollama/models:/models
+    networks:
+      - ai-net
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  # One-shot: pull every model listed in MODELS once ollama is healthy. Talks
+  # to the HTTP API at http://ollama:11434/api/pull. Restarts: "no" -- runs
+  # to completion and exits. Idempotent (pull is a no-op if model present).
+  # Big models (gemma3:4b ~3GB) take several minutes on first run.
+  ollama-bootstrap:
+    image: curlimages/curl:8.10.1
+    restart: "no"
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      - MODELS=gemma4:e4b
+    entrypoint:
+      - sh
+      - -c
+      - |
+        set -eu
+        for m in $$MODELS; do
+          echo "==> pulling $$m"
+          curl -fsS -X POST http://ollama:11434/api/pull \
+            -H 'Content-Type: application/json' \
+            --data "{\"name\":\"$$m\",\"stream\":false}" \
+            | head -c 4000
+          echo
+        done
+        echo "bootstrap complete"
+    networks:
+      - ai-net
