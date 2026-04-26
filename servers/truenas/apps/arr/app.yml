@@ -1,0 +1,14 @@
+---
+name: arr
+enabled: true
+# TRaSH-guides layout. Compose binds /mnt/redsea/arr -> /data inside each
+# *arr; these subfolders are the root folders Sonarr/Radarr point at, and
+# the matching torrent destinations qBittorrent writes to. Reconciler
+# mkdir's them with apps:apps 770 on first apply.
+folders:
+  - /mnt/redsea/arr/media/tv
+  - /mnt/redsea/arr/media/anime
+  - /mnt/redsea/arr/media/movies
+  - /mnt/redsea/arr/torrents/tv
+  - /mnt/redsea/arr/torrents/anime
+  - /mnt/redsea/arr/torrents/movies
