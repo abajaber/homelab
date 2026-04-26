@@ -8,7 +8,7 @@ services:
     environment:
       - PUID=1000
       - PGID=1000
-      - TZ=America/Los_Angeles
+      - TZ=America/toronto
     image: linuxserver/bazarr:latest
     labels:
       - traefik.enable=true
@@ -37,7 +37,7 @@ services:
     environment:
       - LOG_LEVEL=info
       - HEALTH_SERVER_ADDRESS=127.0.0.1:9999
-      - TZ=America/Los_Angeles
+      - TZ=America/toronto
     image: qmcgaw/deunhealth
     network_mode: none
     restart: always
@@ -63,7 +63,9 @@ services:
       - WIREGUARD_PRIVATE_KEY=${WIREGUARD_PRIVATE_KEY}
       - SERVER_CITIES=Montreal, Toronto, New York,Boston
       - PORT_FORWARD_ONLY=on
-      - VPN_PORT_FORWARDING_UP_COMMAND=/bin/sh -c '/usr/bin/wget -O- --retry-connrefused --post-data "json={\"listen_port\":{{PORTS}}}" http://127.0.0.1:8080/api/v2/app/setPreferences 2>&1'
+      - VPN_PORT_FORWARDING_UP_COMMAND=/bin/sh -c '/usr/bin/wget -O-
+        --retry-connrefused --post-data "json={\"listen_port\":{{PORTS}}}"
+        http://127.0.0.1:8080/api/v2/app/setPreferences 2>&1'
       - FIREWALL_OUTBOUND_SUBNETS=192.168.1.0/24
     healthcheck:
       interval: 60s
@@ -91,7 +93,7 @@ services:
     environment:
       - PUID=1000
       - PGID=1000
-      - TZ=America/Los_Angeles
+      - TZ=America/toronto
     image: linuxserver/lidarr:latest
     labels:
       - traefik.enable=true
@@ -120,12 +122,15 @@ services:
     environment:
       - PUID=1000
       - PGID=1000
-      - TZ=America/Los_Angeles
+      - TZ=America/toronto
     image: linuxserver/prowlarr:latest
     labels:
       - traefik.enable=true
     networks:
       default: null
+    # MIGRATION TEMP: revert after running scripts/migrate_arr_settings.py
+    ports:
+      - "9696:9696"
     restart: unless-stopped
     volumes:
       - bind:
@@ -178,12 +183,15 @@ services:
     environment:
       - PUID=1000
       - PGID=1000
-      - TZ=America/Los_Angeles
+      - TZ=America/toronto
     image: linuxserver/radarr:latest
     labels:
       - traefik.enable=true
     networks:
       default: null
+    # MIGRATION TEMP: revert after running scripts/migrate_arr_settings.py
+    ports:
+      - "7878:7878"
     restart: unless-stopped
     volumes:
       - bind:
@@ -207,12 +215,15 @@ services:
     environment:
       - PUID=1000
       - PGID=1000
-      - TZ=America/Los_Angeles
+      - TZ=America/toronto
     image: linuxserver/sonarr:latest
     labels:
       - traefik.enable=true
     networks:
       default: null
+    # MIGRATION TEMP: revert after running scripts/migrate_arr_settings.py
+    ports:
+      - "8989:8989"
     restart: unless-stopped
     volumes:
       - bind:

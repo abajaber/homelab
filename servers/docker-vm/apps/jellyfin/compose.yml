@@ -13,7 +13,7 @@ services:
     environment:
       - PUID=1000
       - PGID=1000
-      - TZ=America/Los_Angeles
+      - TZ=America/toronto
       - JELLYFIN_PublishedServerUrl=http://192.168.1.183:8096
     group_add:
       - "104"
@@ -23,6 +23,7 @@ services:
       - traefik.http.routers.jellyfin.entryPoints=https
       - traefik.http.routers.jellyfin.rule=Host(`jellyfin.bajaber.ca`)
       - traefik.http.routers.jellyfin.tls=true
+      - traefik.http.routers.jellyfin.tls.certresolver=cloudflare
       - traefik.http.routers.jellyfin.service=jellyfin@file
       - traefik.http.services.jellyfin.loadbalancer.server.port=8096
       - traefik.http.services.jellyfin.loadbalancer.server.scheme=http
@@ -50,7 +51,7 @@ services:
     environment:
       - PUID=1000
       - PGID=1000
-      - TZ=America/Los_Angeles
+      - TZ=America/toronto
     image: fallenbagel/jellyseerr:latest
     labels:
       - traefik.enable=true
