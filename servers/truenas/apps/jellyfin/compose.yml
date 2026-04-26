@@ -1,0 +1,75 @@
+---
+# Jellyfin + Jellyseerr on a bridge network (no host networking).
+# - DLNA (UDP 1900) doesn't work on a Docker bridge per official docs; disable
+#   the DLNA plugin in Jellyfin admin to silence log spam. Native-app
+#   autodiscovery (UDP 7359) is published as best-effort.
+# - Hardware transcoding via NVIDIA NVENC/NVDEC: GPU reserved by UUID through
+#   the Compose `deploy.resources` API (matches immich). In Jellyfin admin,
+#   set Playback → Transcoding → Hardware acceleration = "Nvidia NVENC".
+networks:
+  proxy:
+    external: true
+    name: proxy
+  media-internal:
+    external: true
+    name: media-internal
+
+services:
+  jellyfin:
+    image: jellyfin/jellyfin
+    container_name: jellyfin
+    restart: unless-stopped
+    user: "568:568"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities:
+                - gpu
+              device_ids:
+                - GPU-53c1e32f-a0d4-3a75-aed3-036ea12cd90a
+              driver: nvidia
+    environment:
+      - TZ=America/toronto
+      - JELLYFIN_PublishedServerUrl=https://jellyfin.bajaber.ca
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - NVIDIA_VISIBLE_DEVICES=GPU-53c1e32f-a0d4-3a75-aed3-036ea12cd90a
+    ports:
+      - 7359:7359/udp
+    volumes:
+      - /mnt/redsea/apps/jellyfin/config:/config
+      - /mnt/redsea/apps/jellyfin/cache:/cache
+      - /mnt/redsea/arr/media:/media:ro
+    networks:
+      - proxy
+      - media-internal
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.jellyfin.rule=Host(`jellyfin.bajaber.ca`)
+      - traefik.http.routers.jellyfin.entrypoints=websecure
+      - traefik.http.routers.jellyfin.tls=true
+      - traefik.http.routers.jellyfin.tls.certresolver=cloudflare
+      - traefik.http.services.jellyfin.loadbalancer.server.port=8096
+      - traefik.http.services.jellyfin.loadbalancer.server.scheme=http
+
+  jellyseerr:
+    image: fallenbagel/jellyseerr:latest
+    container_name: jellyseerr
+    restart: unless-stopped
+    user: "568:568"
+    environment:
+      - TZ=America/toronto
+    volumes:
+      - /mnt/redsea/apps/jellyfin/jellyseerr/config:/app/config
+    networks:
+      - proxy
+      - media-internal
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.jellyseerr.rule=Host(`jellyseerr.bajaber.ca`)
+      - traefik.http.routers.jellyseerr.entrypoints=websecure
+      - traefik.http.routers.jellyseerr.tls=true
+      - traefik.http.routers.jellyseerr.tls.certresolver=cloudflare
+      - traefik.http.services.jellyseerr.loadbalancer.server.port=5055
