@@ -136,6 +136,14 @@ ansible-vault edit servers/<host>/apps/<app>/.env
 
 **Adding a new secret to an existing app**: edit the `.env` to add the key, then change the `compose.yml` env value to `${KEY}`. Re-plan; the app shows up under `~ to-update`.
 
+**Tooling secrets that aren't compose env-vars**: `.env` is also the catalog for credentials that *external tooling* needs to talk to an app's HTTP API — even when those credentials are generated inside the container and never appear in `compose.yml`. The arr stack is the canonical example: `servers/truenas/apps/arr/.env` carries `SONARR_API_KEY`, `RADARR_API_KEY`, `LIDARR_API_KEY`, `PROWLARR_API_KEY`, `SONARR_TV_API_KEY`, `BAZARR_API_KEY` — none are referenced from the compose body, but the wire-up scripts (`scripts/wire_prowlarr_sonarrs.py`, `scripts/wire_jellyseerr_sonarrs.py`, `scripts/migrate_arr_settings.py`, etc.) and any one-off API call (e.g. flipping AuthenticationMethod) read them. Workflow on a fresh app: deploy first → boot the app → grab the API key from its UI (Settings → General → Security → API Key) → `ansible-vault edit servers/truenas/apps/<app>/.env` and replace the `replace-me` placeholder. The `.env.example` should ship the placeholder so a clone can see what's expected.
+
+### Forward-auth pattern for arr / qBittorrent (TrueNAS)
+
+Authentik forward auth gates every protected hostname via a Traefik middleware defined as Docker labels on `servers/truenas/apps/authentik/compose.yml` (`traefik.http.middlewares.authentik.forwardauth.*`, referenced from app routers as `authentik@docker`). Because `AUTHENTIK_LISTEN__HTTP=0.0.0.0:30140`, the middleware address is `http://authentik-server:30140/outpost.goauthentik.io/auth/traefik` — **not** the upstream-default `:9000`. Authentik's canonical external URL is pinned with `AUTHENTIK_EXTERNAL_HOST=https://auth.bajaber.ca` in the same compose; the embedded Outpost YAML config (UI: *Applications → Outposts → Edit*) must also have `authentik_host_browser: https://auth.bajaber.ca`, otherwise the outpost sends browsers to whatever URL Authentik was first reached on (typically `https://truenas.bajaber.ca:30141`). Outpost YAML overrides everything else.
+
+Each gated app declares **two** Traefik routers: the UI router (`authentik@docker` middleware, `priority=10`) and an `<name>-api` router that matches `Host(...) && PathPrefix(\`/api\`)` for *arr/Bazarr or `/api/v2` for qBittorrent (no middleware, `priority=20`, `service=<name>` to share the backend). The bypass is required so external tooling — Recyclarr, the wire-up scripts, anything that authenticates via `X-Api-Key` — can still reach the API. Pair the bypass with `AuthenticationMethod=External` + `AuthenticationRequired=DisabledForLocalAddresses` in each *arr (PUT `/api/v3/config/host` on Sonarr/Radarr, `/api/v1/config/host` on Lidarr/Prowlarr), and on qBittorrent set `bypass_auth_subnet_whitelist_enabled=true` plus the standard private CIDRs (POST `/api/v2/app/setPreferences` after `/api/v2/auth/login`). Both *arr and qBittorrent apply these live with no container restart, so use the API; never edit `config.xml` / `qBittorrent.conf` while the container is up (qBittorrent rewrites its conf on shutdown and clobbers manual edits).
+
 **Imports never write a `.env`**: `truenas_import.py` and `playbooks/docker_vm_import.yml` round-trip the rendered compose verbatim (current behavior), but after writing they call `scripts/scan_compose_secrets.py` which prints a heuristic warning enumerating env keys whose names match `*_(PASSWORD|SECRET|TOKEN|KEY|API_KEY)`. Extract those manually before commit.
 
 ### TrueNAS storage strategy: which volume style to pick
@@ -207,6 +215,45 @@ Vault password file is `.vault-password` at the repo root, gitignored, and `ansi
 
 - **Per-host** (e.g. TrueNAS API key): `servers/<host>/vault.yml`. Cleartext `vars.yml` references each secret as `{{ vault_<name> }}` so it's obvious where a value comes from. Files start as cleartext placeholders and get encrypted in place once real values are added (`ansible-vault encrypt servers/<host>/vault.yml`).
 - **Per-app** (DB passwords, API tokens used by the app itself): `servers/<host>/apps/<app>/.env`, ansible-vault encrypted, KEY=VALUE format. Referenced from the app's `compose.yml` as `${VAR}`. See "Per-app secrets via encrypted `.env`" above. The reconciler substitutes values at apply time; the cleartext never lands on disk outside the app's running container.
+
+### Reconciler extension hooks (future work)
+
+The reconciler does *one* thing per app today: create a single ZFS dataset at `<dataset_root>/<app_name>` and `mkdir` any bind-mount paths inside it (or under `/mnt/`) referenced by the compose. That covers ~80% of cases but leaves several patterns to manual operations:
+
+1. **Per-component child datasets** (e.g. immich's `redsea/apps/immich/database` carved off so postgres can have `recordsize=8K compression=zstd` and its own snapshot cadence). The reconciler today does not create child datasets — they exist on the box because someone ran `zfs create` by hand. The reconciler is idempotent so binds resolve through the child mountpoint without any code change, but the *creation* is invisible to the repo.
+
+   To make this declarative, extend `app.yml` with a `datasets:` field:
+
+   ```yaml
+   ---
+   name: immich
+   datasets:
+     database:
+       recordsize: 8K
+       compression: zstd
+       atime: off
+       owner: "999:999"      # postgres
+       mode: "770"
+     data:
+       owner: "568:568"
+       mode: "770"
+   ```
+
+   The reconciler (`scripts/truenas_reconcile.py:261-276` `ensure_dataset`) would need to (a) accept a properties dict and pass it through to `pool.dataset.create` on the JSON-RPC API, and (b) optionally apply non-default ownership via `fs_setperm` when `owner:` is given (today it always stamps `apps:apps 770`). Idempotency is already handled — `dataset_query` returns None for absent and a dict otherwise.
+
+2. **Non-default ownership on the parent dataset.** Some apps need the parent itself owned by a non-`apps` UID. Today `APPS_USER/APPS_GROUP/APPS_MODE` are module constants (`scripts/truenas_reconcile.py:256-258`); could lift them per-app via `app.yml` (`owner:`, `mode:` at the top level). Existing apps default to `apps:apps 770` — backwards-compatible.
+
+3. **Docker network management.** Networks declared `external: true` in per-app composes (currently `proxy` and `media-internal`) are managed by hand: someone runs `docker network create` once on the host. The repo has no record of which networks are required, so a fresh-install bootstrap has to be reverse-engineered from grepping composes. The TrueNAS JSON-RPC API does **not** expose `docker.network.*` methods today (verified 2026-04-25), so a workaround would be either (a) wrap a `chart_release.exec` or similar method to run `docker network create` from a long-lived container, or (b) accept the manual step and document a `servers/<host>/networks.yml` catalog so the human knows what to create. (b) is simpler and good enough.
+
+4. **Pre-existing-resource adoption.** When binding a path to a dataset created outside the reconciler, ownership/perms aren't normalized — the reconciler's `ensure_folder`/`ensure_dataset` no-op when paths exist. Could add an optional `adopt: true` flag on `app.yml` `folders:` entries that forces a `fs_setperm` to `APPS_USER:APPS_GROUP:APPS_MODE` even on existing paths. Risky if misused (could clobber hand-tuned perms), so opt-in is the right shape.
+
+5. **Catalog-app management.** `truenas_reconcile.py:340-341` skips apps where `custom_app: false`. Catalog apps (Plex, scrutiny, netbootxyz, tailscale) are configured by a `values` form, not a compose body. Adding support means a separate `catalog.yml` schema and a code path that calls `app.update` with `values` instead of `custom_compose_config_string`.
+
+6. **SMB/NFS share creation.** TrueNAS exposes `sharing.smb.create` / `sharing.nfs.create` over JSON-RPC. Could declarative this via `shares:` in `app.yml`. Lowest priority — easy in TrueNAS UI for one-offs.
+
+7. **ZFS snapshot policies.** Tied to (1) — `pool.snapshottask.create` exposes the same retention/cadence options the UI offers. A `snapshots:` block in `app.yml` would let the reconciler reconcile snapshot tasks the same way it reconciles apps.
+
+Recommended order to tackle these when the need shows up: (1) → (2) → (4) → (3) → (7) → (6) → (5). Each is additive — no existing app needs to change when a new field becomes available.
 
 ## Out of scope
 
