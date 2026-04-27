@@ -1,0 +1,61 @@
+---
+# Navidrome — Subsonic-compatible self-hosted music server.
+#
+# Auth model:
+# - Web UI: Authentik forward-auth gates the page load. Authentik forwards
+#   X-authentik-username, Navidrome auto-creates/looks up that user via
+#   ND_REVERSEPROXYUSERHEADER, and the user is logged in without ever seeing
+#   a Navidrome login screen. True SSO for the browser.
+# - Subsonic clients (Amperfy, DSub, Symfonium): the Subsonic protocol can't
+#   carry Authentik credentials. They hit /rest/* via the priority-20 bypass
+#   router (no Authentik), and Navidrome falls back to its built-in token
+#   auth against the user's per-device "Subsonic password" (set in
+#   Navidrome -> Personal). The Authentik and Subsonic passwords are
+#   independent — treat the Subsonic password like a per-app password.
+networks:
+  proxy:
+    external: true
+    name: proxy
+  media-internal:
+    external: true
+    name: media-internal
+
+services:
+  navidrome:
+    image: deluan/navidrome:0.55.2
+    container_name: navidrome
+    restart: unless-stopped
+    user: "568:568"
+    environment:
+      - ND_LOGLEVEL=info
+      - ND_MUSICFOLDER=/music
+      - ND_DATAFOLDER=/data
+      - ND_SCANSCHEDULE=@every 1h
+      - ND_SESSIONTIMEOUT=24h
+      - ND_LISTENBRAINZ_ENABLED=true
+      - ND_LASTFM_APIKEY=${LASTFM_APIKEY}
+      - ND_LASTFM_SECRET=${LASTFM_SECRET}
+      - ND_REVERSEPROXYUSERHEADER=X-authentik-username
+      - ND_REVERSEPROXYWHITELIST=172.16.0.0/12
+    volumes:
+      - /mnt/redsea/apps/navidrome/data:/data
+      - /mnt/redsea/arr/media/music:/music:ro
+    networks:
+      - proxy
+      - media-internal
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.navidrome.rule=Host(`navidrome.bajaber.ca`)
+      - traefik.http.routers.navidrome.entrypoints=websecure
+      - traefik.http.routers.navidrome.tls=true
+      - traefik.http.routers.navidrome.tls.certresolver=cloudflare
+      - traefik.http.services.navidrome.loadbalancer.server.port=4533
+      - traefik.http.routers.navidrome.middlewares=authentik@docker
+      - traefik.http.routers.navidrome.priority=10
+      - traefik.http.routers.navidrome-api.rule=Host(`navidrome.bajaber.ca`) && (PathPrefix(`/rest`) || PathPrefix(`/api`) || PathPrefix(`/share`))
+      - traefik.http.routers.navidrome-api.entrypoints=websecure
+      - traefik.http.routers.navidrome-api.tls=true
+      - traefik.http.routers.navidrome-api.tls.certresolver=cloudflare
+      - traefik.http.routers.navidrome-api.service=navidrome
+      - traefik.http.routers.navidrome-api.priority=20
