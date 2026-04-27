@@ -1,0 +1,16 @@
+---
+name: music-tools
+enabled: true
+# Music pipeline: Lidarr (manager) -> Soularr (bridge) -> slskd (Soulseek
+# client) -> Lidarr import -> /mnt/redsea/arr/media/music. Explo pulls
+# ListenBrainz recommendations, downloads via slskd, drops them in
+# media/music/explo for Navidrome to pick up.
+#
+# Library + downloads live under the existing arr dataset so hardlinks work
+# between slskd's downloads and Lidarr's library. Reconciler mkdir's these
+# with apps:apps 770 on first apply.
+folders:
+  - /mnt/redsea/arr/media/music
+  - /mnt/redsea/arr/torrents/music
+  - /mnt/redsea/arr/torrents/music/incomplete
+  - /mnt/redsea/arr/media/music/explo
