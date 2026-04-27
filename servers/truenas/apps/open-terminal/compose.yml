@@ -1,0 +1,37 @@
+---
+networks:
+  proxy:
+    external: true
+    name: proxy
+
+services:
+  open-terminal:
+    # Pin to the same tag the TrueNAS community catalog uses (the `:slim`
+    # rolling tag silently drops `run` subcommand support); see
+    # https://github.com/truenas/apps/tree/master/ix-dev/community/open-terminal
+    image: ghcr.io/open-webui/open-terminal:0.11.34
+    container_name: open-terminal
+    restart: unless-stopped
+    user: "568:568"
+    group_add:
+      - "568"
+    cap_add:
+      - SETGID
+    command: ["run", "--port", "8000"]
+    environment:
+      HOME: /home/user
+      OPEN_TERMINAL_API_KEY: ${OPEN_TERMINAL_API_KEY}
+      TZ: America/Toronto
+    volumes:
+      - /mnt/redsea/apps/open-terminal/home:/home/user
+      - /mnt/redsea/apps:/mnt/apps
+    networks:
+      - proxy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.open-terminal.rule=Host(`open-terminal.bajaber.ca`)
+      - traefik.http.routers.open-terminal.entrypoints=websecure
+      - traefik.http.routers.open-terminal.tls=true
+      - traefik.http.routers.open-terminal.tls.certresolver=cloudflare
+      - traefik.http.services.open-terminal.loadbalancer.server.port=8000
