@@ -1,6 +1,14 @@
 # Ansible Vault password — must never be committed
 .vault-password
 
+# Convenience copy of open-terminal credentials so AI/CLI tooling can hit the
+# REST API without round-tripping through ansible-vault every call. The vault
+# is still source of truth (servers/truenas/apps/open-terminal/.env).
+.open-terminal.env
+
+# Claude Code local session state (lock files, etc.)
+.claude/
+
 # Ansible runtime artifacts
 *.retry
 .ansible/
