@@ -301,7 +301,7 @@ services:
       - -d
       - authentik
       timeout: 5s
-    image: postgres:18.1-trixie
+    image: postgres:18.3-trixie
     platform: linux/amd64
     privileged: false
     restart: unless-stopped
