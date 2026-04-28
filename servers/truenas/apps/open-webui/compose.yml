@@ -190,7 +190,7 @@ services:
       - ${WEBUI_REDIS_PASSWORD}
       - ping
       timeout: 5s
-    image: valkey/valkey:9.0.2
+    image: valkey/valkey:9.0.3
     platform: linux/amd64
     privileged: false
     restart: unless-stopped
