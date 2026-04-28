@@ -63,7 +63,7 @@ services:
       - --fail
       - http://127.0.0.1:31028/health
       timeout: 5s
-    image: ghcr.io/open-webui/open-webui:0.7.2-cuda
+    image: ghcr.io/open-webui/open-webui:v0.9.2-cuda
     platform: linux/amd64
     ports:
     - mode: ingress
