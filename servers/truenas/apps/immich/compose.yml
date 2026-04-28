@@ -71,7 +71,7 @@ services:
       - python3
       - healthcheck.py
       timeout: 5s
-    image: ghcr.io/immich-app/immich-machine-learning:v2.7.4
+    image: ghcr.io/immich-app/immich-machine-learning:v2.7.5
     networks:
       ix-internal-immich-net: {}
     platform: linux/amd64
@@ -417,7 +417,7 @@ services:
       - CMD
       - immich-healthcheck
       timeout: 5s
-    image: ghcr.io/immich-app/immich-server:v2.7.4
+    image: ghcr.io/immich-app/immich-server:v2.7.5
     labels:
       traefik.docker.network: proxy
       traefik.enable: 'true'
