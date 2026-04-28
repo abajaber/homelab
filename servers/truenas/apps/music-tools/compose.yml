@@ -46,7 +46,7 @@ services:
   # forwarded on the home router for upload reciprocation; without it,
   # firewalled peers queue you indefinitely.
   slskd:
-    image: slskd/slskd:0.22.5
+    image: slskd/slskd:0.25.1
     container_name: slskd
     restart: unless-stopped
     user: "568:568"
