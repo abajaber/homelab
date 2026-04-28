@@ -10,14 +10,19 @@
   "prHourlyLimit": 2,
   "prConcurrentLimit": 5,
   "docker-compose": {
-    "fileMatch": ["servers/truenas/apps/.+/compose\\.ya?ml$"]
+    "managerFilePatterns": [
+      "/servers/truenas/apps/.+/compose\\.ya?ml$/"
+    ]
   },
   "packageRules": [
     {
-      "matchPackagePrefixes": ["lscr.io/linuxserver/", "linuxserver/"],
       "groupName": "linuxserver",
       "automerge": true,
-      "automergeType": "branch"
+      "automergeType": "branch",
+      "matchPackageNames": [
+        "lscr.io/linuxserver/{/,}**",
+        "linuxserver/{/,}**"
+      ]
     },
     {
       "matchPackageNames": [
