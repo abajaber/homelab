@@ -11,7 +11,7 @@ networks:
 
 services:
   gluetun:
-    image: qmcgaw/gluetun
+    image: qmcgaw/gluetun:v3.41.1
     container_name: gluetun
     restart: unless-stopped
     cap_add:
@@ -60,7 +60,7 @@ services:
       - deunhealth.restart.on.unhealthy=true
 
   qbittorrent:
-    image: linuxserver/qbittorrent:latest
+    image: linuxserver/qbittorrent:5.1.4-r3-ls451
     container_name: qbittorrent-vpn
     restart: unless-stopped
     network_mode: service:gluetun
@@ -86,7 +86,7 @@ services:
       - deunhealth.restart.on.unhealthy=true
 
   deunhealth:
-    image: qmcgaw/deunhealth
+    image: qmcgaw/deunhealth:v0.3.0
     container_name: deunhealth
     restart: always
     network_mode: none

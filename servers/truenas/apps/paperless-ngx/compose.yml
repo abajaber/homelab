@@ -93,14 +93,14 @@ services:
       - TZ=America/toronto
 
   tika:
-    image: apache/tika:latest
+    image: apache/tika:3.3.0.0
     container_name: paperless-tika
     restart: unless-stopped
     environment:
       - TZ=America/toronto
 
   paperless:
-    image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    image: ghcr.io/paperless-ngx/paperless-ngx:2.20.14
     container_name: paperless
     restart: unless-stopped
     # Run directly as the apps:apps uid/gid the dataset is stamped with.
@@ -168,7 +168,7 @@ services:
   # paperless UI (Settings -> API Tokens) and `ansible-vault edit` the .env
   # before applying.
   paperless-ai:
-    image: clusterzx/paperless-ai:latest
+    image: clusterzx/paperless-ai:3.0.9
     container_name: paperless-ai
     restart: unless-stopped
     depends_on:
@@ -201,7 +201,7 @@ services:
       - traefik.http.routers.paperless-ai.middlewares=authentik@docker
 
   paperless-gpt:
-    image: icereed/paperless-gpt:latest
+    image: icereed/paperless-gpt:v0.25.1
     container_name: paperless-gpt
     restart: unless-stopped
     depends_on:

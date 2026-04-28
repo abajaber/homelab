@@ -22,7 +22,7 @@ networks:
 
 services:
   navidrome:
-    image: deluan/navidrome:0.55.2
+    image: deluan/navidrome:0.61.2
     container_name: navidrome
     restart: unless-stopped
     user: "568:568"
@@ -35,8 +35,15 @@ services:
       - ND_LISTENBRAINZ_ENABLED=true
       - ND_LASTFM_APIKEY=${LASTFM_APIKEY}
       - ND_LASTFM_SECRET=${LASTFM_SECRET}
-      - ND_REVERSEPROXYUSERHEADER=X-authentik-username
-      - ND_REVERSEPROXYWHITELIST=172.16.0.0/12
+      # Authentik header SSO via Navidrome's ExtAuth (renamed from the legacy
+      # ReverseProxy* keys in v0.56+). TrustedSources MUST include both
+      # 0.0.0.0/0 AND ::/0 — TrueNAS's docker bridge has IPv6 enabled
+      # (fdd0::/64) and traefik connects to backends over v6, so an IPv4-only
+      # whitelist silently fails the trust check and Navidrome falls through
+      # to password auth. The whitelist is wide because port 4533 is never
+      # published — the only path in is traefik after authentik forward-auth.
+      - ND_EXTAUTH_USERHEADER=X-authentik-username
+      - ND_EXTAUTH_TRUSTEDSOURCES=0.0.0.0/0,::/0
     volumes:
       - /mnt/redsea/apps/navidrome/data:/data
       - /mnt/redsea/arr/media/music:/music:ro
@@ -53,7 +60,14 @@ services:
       - traefik.http.services.navidrome.loadbalancer.server.port=4533
       - traefik.http.routers.navidrome.middlewares=authentik@docker
       - traefik.http.routers.navidrome.priority=10
-      - traefik.http.routers.navidrome-api.rule=Host(`navidrome.bajaber.ca`) && (PathPrefix(`/rest`) || PathPrefix(`/api`) || PathPrefix(`/share`))
+      # /rest is the Subsonic API used by mobile clients (Amperfy, Symfonium,
+      # DSub) and Explo — those can't traverse Authentik, so the bypass lets
+      # them authenticate via Subsonic u/t/s. /share is for public share links
+      # (authless by design). /api is NOT bypassed: it's the SPA's native API
+      # and authenticates via the X-authentik-username header that the
+      # authentik forward-auth middleware injects. Bypassing /api leaves the
+      # SPA at a login screen because reverse-proxy auth never fires.
+      - traefik.http.routers.navidrome-api.rule=Host(`navidrome.bajaber.ca`) && (PathPrefix(`/rest`) || PathPrefix(`/share`))
       - traefik.http.routers.navidrome-api.entrypoints=websecure
       - traefik.http.routers.navidrome-api.tls=true
       - traefik.http.routers.navidrome-api.tls.certresolver=cloudflare

@@ -1,0 +1,34 @@
+name: CI
+on:
+  pull_request: {}
+  push:
+    branches: [main]
+
+jobs:
+  compose-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate every compose.yml
+        run: |
+          set -e
+          fail=0
+          for f in servers/*/apps/*/compose.yml; do
+            echo "::group::$f"
+            if ! docker compose --env-file /dev/null -f "$f" config --no-interpolate -q; then
+              fail=1
+            fi
+            echo "::endgroup::"
+          done
+          exit $fail
+
+  ansible-syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install ansible
+      - run: ansible-playbook playbooks/apply.yml --syntax-check
+      - run: ansible-playbook playbooks/plan.yml --syntax-check

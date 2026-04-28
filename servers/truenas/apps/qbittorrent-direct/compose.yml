@@ -14,7 +14,7 @@ networks:
 
 services:
   qbittorrent:
-    image: linuxserver/qbittorrent:latest
+    image: linuxserver/qbittorrent:5.1.4-r3-ls451
     container_name: qbittorrent-direct
     restart: unless-stopped
     environment:
