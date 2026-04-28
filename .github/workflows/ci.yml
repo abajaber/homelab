@@ -31,6 +31,6 @@ jobs:
           python-version: '3.12'
       - run: pip install ansible
       - name: Stub vault password (syntax-check doesn't decrypt)
-        run: touch .vault-password
+        run: echo ci > .vault-password
       - run: ansible-playbook playbooks/apply.yml --syntax-check
       - run: ansible-playbook playbooks/plan.yml --syntax-check
