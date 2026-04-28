@@ -268,7 +268,7 @@ services:
     - 568
     healthcheck:
       disable: true
-    image: ixsystems/postgres-upgrade:1.2.1
+    image: ixsystems/postgres-upgrade:1.2.7
     network_mode: none
     platform: linux/amd64
     privileged: false
