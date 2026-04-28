@@ -18,7 +18,6 @@
     {
       "groupName": "linuxserver",
       "automerge": true,
-      "automergeType": "branch",
       "matchPackageNames": [
         "lscr.io/linuxserver/{/,}**",
         "linuxserver/{/,}**"
