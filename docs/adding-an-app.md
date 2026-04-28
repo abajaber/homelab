@@ -1,16 +1,26 @@
 # Adding an app
 
-The flow is the same shape on both server types — drop a folder, run `plan`, run `apply`.
+The flow has the same shape on both server types — drop a folder, run `plan`, run `apply`. The compose body and a sibling `.env` are the entire source of truth.
+
+## Shared conventions
+
+- **No top-level `name:` in `compose.yml`** — the project name comes from the folder name (and `app.yml`'s `name:`, if you override it).
+- **Reference secrets as `${VAR}`** in `compose.yml`; put `VAR=...` lines in a sibling `.env` and `ansible-vault encrypt` the file. The reconciler wires the two together at apply time. See [secrets.md](secrets.md) for the full workflow.
+- **Don't paste a literal password** into `compose.yml`. The `.githooks/pre-commit` hook will block any cleartext `.env`, but it can't see secrets you accidentally inlined in compose.
+
+A starter template lives at `servers/truenas/apps/_example/` — copy that directory and rename.
 
 ## On the Docker VM
 
 1. Pick a name. It will become the directory name *and* the compose project name on the host (`/opt/homelab/apps/<name>/`).
-2. Create the folder and two files:
+
+2. Create the folder:
 
     ```
     servers/docker-vm/apps/<name>/
     ├── app.yml
-    └── compose.yml
+    ├── compose.yml
+    └── .env            # optional; vault-encrypt before committing
     ```
 
     `app.yml`:
@@ -20,15 +30,17 @@ The flow is the same shape on both server types — drop a folder, run `plan`, r
     enabled: true
     ```
 
-    `compose.yml`: a normal docker-compose body. **Don't** set a top-level `name:` — the role passes the project name explicitly.
-
-3. If the app needs secrets, add them to the encrypted vault and reference them via env in compose:
+3. If the app needs secrets:
 
     ```bash
-    ansible-vault edit servers/docker-vm/vault.yml
+    cat > servers/docker-vm/apps/<name>/.env <<'EOF'
+    DB_PASSWORD=<value>
+    API_TOKEN=<value>
+    EOF
+    ansible-vault encrypt servers/docker-vm/apps/<name>/.env
     ```
 
-    Wiring vault values into a `.env` file rendered at sync time isn't yet built — for now, use the standard compose `environment:` keys with values pulled from the host environment, or add a small `env.j2` template to the app dir and a render task. (Follow-up.)
+    Reference them from `compose.yml` as `${DB_PASSWORD}` / `${API_TOKEN}`. The Docker VM role rsyncs the app dir minus `.env`, then writes a decrypted copy at `0600` next to the compose; Docker Compose's native loader picks it up.
 
 4. Plan, then apply:
 
@@ -45,28 +57,47 @@ The flow is the same shape on both server types — drop a folder, run `plan`, r
 
 ## On TrueNAS
 
-1. Same idea, under `servers/truenas/apps/<name>/` with `app.yml` + `compose.yml`.
-2. **Datasets and folders are inferred from the compose at apply time** — for every bind-mount source under `/mnt/<pool>/apps/<name>/`, the reconciler creates a ZFS dataset at `<pool>/apps/<name>` (if missing) and `mkdir`s each subfolder. You don't have to list anything in `app.yml` for this; the compose is the source of truth.
+1. Same idea, under `servers/truenas/apps/<name>/` with `app.yml`, `compose.yml`, and an optional `.env`.
 
-   Optional override: list extra paths in `app.yml`'s `folders:` for things the compose doesn't mention but you want pre-created:
+2. **Bind everything stateful** to `/mnt/<truenas_dataset_root>/<name>/<purpose>` — the variable `truenas_dataset_root` lives in `servers/truenas/vars.yml` (currently `redsea/apps`). Use sub-folders like `data`, `config`, `db` per service. The reconciler creates the dataset on first apply and stamps `apps:apps 770`. **Existing paths are never touched** — hand-tuned ownership/perms survive across reconciles.
 
-   ```yaml
-   ---
-   name: myapp
-   enabled: true
-   folders:
-     - extra-path   # in addition to whatever the compose mounts
-   ```
+   Pick the right volume style for each mount:
 
-   For finer dataset granularity (e.g. snapshot the DB separately from media), create those datasets in the TrueNAS UI first — the auto-create is idempotent and skips existing datasets.
-3. Plan, apply:
+    | Compose form | Where data lives | When to use |
+    |---|---|---|
+    | `/mnt/<root>/<name>/<sub>:/path` (explicit bind) | Inside the per-app dataset on the data pool. | **Default** for anything you'd want to back up, snapshot, or quota: databases, app config, user data, media. |
+    | `mydata:/path` (named volume) | `/mnt/<apps-pool>/ix-apps/docker/volumes/<vol>/_data`. Docker manages it; reconciler ignores it. | Cache or scratch where the on-disk location doesn't matter (Redis cache, ML model cache, build artifacts). |
+    | `tmpfs:` mount | RAM only. | Truly ephemeral state: `/tmp`, sockets, secrets that should evaporate on restart. |
+    | `/mnt/.ix-apps/app_mounts/<app>/<x>:/path` | Directories TrueNAS provisions for catalog apps converted to Custom. | Almost never write by hand. Leave it alone if it shows up in imported compose and works. |
+
+   **Rule of thumb**: if losing the data would matter, use an explicit bind to a dataset.
+
+3. Optional override — list extra paths in `app.yml`'s `folders:` for things the compose doesn't bind-mount but you want pre-created:
+
+    ```yaml
+    ---
+    name: myapp
+    enabled: true
+    folders:
+      - extra-path        # relative → /mnt/<truenas_dataset_root>/myapp/extra-path
+    ```
+
+   Relative entries anchor under the per-app dataset; absolute entries are taken verbatim (refused if outside `/mnt/`). The reconciler refuses to touch anything outside `/mnt/`.
+
+4. For finer dataset granularity (e.g. snapshot the DB separately from media, or set `recordsize=8K` for a Postgres volume), create those child datasets in the TrueNAS UI first — the auto-create is idempotent and skips existing datasets, and binds resolve through child mountpoints without any code change.
+
+5. Plan, apply:
 
     ```bash
     ansible-playbook playbooks/truenas_sync.yml
     ansible-playbook playbooks/truenas_sync.yml -e mode=apply
     ```
 
-4. Verify in the TrueNAS UI under **Apps** — the new app should be in `Running` state and its description should contain `managed-by: homelab-repo`.
+6. Verify in the TrueNAS UI under **Apps** — the new app should be `Running`, and its compose body (visible from the app's UI page) should have an `x-homelab.fingerprint` block at the top.
+
+## Forward auth (Authentik) for apps with an HTTP API
+
+If the new app sits behind Authentik **and** something external still needs to talk to its API (Recyclarr, the wire-up scripts under `scripts/`, anything authenticating with `X-Api-Key`), use the two-router pattern: a UI router with the `authentik@docker` middleware, plus an `<name>-api` router that bypasses auth for `/api`. Full pattern + matching app-side config in [forward-auth.md](forward-auth.md).
 
 ## Importing existing apps
 
@@ -80,18 +111,51 @@ ansible-playbook playbooks/import.yml
 ansible-playbook playbooks/import.yml -e mode=apply
 ```
 
-After import, **re-run `plan.yml` before `apply.yml`** to see how the imported state compares to the repo.
+After import, **review with `git diff` before committing** — and pay attention to the warnings printed at the end of the run.
+
+### The import secrets warning
+
+After writing each new compose, the importer runs `scripts/scan_compose_secrets.py` against it. The script prints a warning enumerating env keys whose names match `*_(PASSWORD|SECRET|TOKEN|KEY|API_KEY|JWT)` (case-insensitive) when the value is a literal scalar (not already `${VAR}`). Example output:
+
+```
+! likely secrets in servers/truenas/apps/foo/compose.yml:
+    foo.environment.DB_PASSWORD = abcd…ef
+    foo.environment.API_TOKEN = ghij…kl
+```
+
+For each flagged key:
+1. Create or edit `servers/<host>/apps/<app>/.env` and add `KEY=<value>`.
+2. Replace the value in `compose.yml` with `${KEY}`.
+3. `ansible-vault encrypt servers/<host>/apps/<app>/.env`.
+
+Then re-plan; the first apply afterwards will adopt the app (see "Adoption" below).
 
 ### TrueNAS specifics
 
 - **Custom Apps** (compose-based) round-trip cleanly.
-- **Catalog apps** (Plex, Jellyfin, Nextcloud, etc. installed from the catalog) are **skipped with a warning**. Catalog apps don't have a compose body — they're parameterized by a `values` form. Repo support for those is a follow-up.
-- Import is **read-only on the server**. It never writes anything to TrueNAS. Adoption happens automatically the next time you run `truenas_sync.yml -e mode=apply`: the reconciler sees apps that are in the repo but on the server without the `x-homelab` marker, classifies them as `@ to-adopt`, and updates the live app with the stamped compose. No separate "adopt" gesture needed — the same `apply` that creates new apps and updates existing managed ones also adopts unmarked apps that match repo entries.
+- **Catalog apps** (Plex, Jellyfin, Nextcloud, etc. installed from the catalog) are **skipped with a warning**. Catalog apps don't have a compose body — they're parameterized by a `values` form. Repo support is a follow-up.
+- Import is **read-only on the server**. Adoption happens automatically the next time you run `truenas_sync.yml -e mode=apply`: the reconciler classifies "in repo + on server without our marker" as `@ to-adopt` and re-pushes the stamped compose. No separate "adopt" gesture needed.
 
 ### Docker VM specifics
 
 - Imported `compose.yml` is the *rendered* form (`docker compose config --no-interpolate`). Multi-file overrides are merged. Comments and YAML anchors are lost.
 - Adoption happens automatically on the next sync — `community.docker.docker_compose_v2` reconciles by **project name**, so as long as the imported folder name matches the running project name, `apply.yml` will pick it up. The project will be redeployed from `/opt/homelab/apps/<name>/` (the canonical managed path), which may recreate containers if the original compose lived elsewhere on the host.
+
+## Bringing an app onto TrueNAS from elsewhere (not yet on the box)
+
+Two flows depending on where the app starts.
+
+### A) You already have the compose somewhere else (gist, another host, scratch)
+
+1. Drop `app.yml` + `compose.yml` under `servers/truenas/apps/<name>/`.
+2. Rewrite the compose's persistent volumes to bind under `/mnt/<truenas_dataset_root>/<name>/...` — drop any absolute paths from the original host, kill any `bind:` to `/var/lib/docker/...`.
+3. Pull every literal secret out of `compose.yml` into a sibling `.env`; replace each with `${VAR}` in compose. `ansible-vault encrypt servers/truenas/apps/<name>/.env`.
+4. **Migrate the data first if there is any.** `rsync` the old volumes into `/mnt/<truenas_dataset_root>/<name>/<sub>/` on TrueNAS *before* applying — otherwise the new container starts on an empty dataset.
+5. `ansible-playbook playbooks/truenas_sync.yml -e mode=apply`.
+
+### B) The app is already running on TrueNAS (UI/Custom App), just not in this repo
+
+Use the import flow above — `playbooks/truenas_import.yml` reads each Custom App's compose via `app.config(name)`, strips any `x-homelab` marker, and writes `servers/truenas/apps/<name>/{app.yml,compose.yml}`. Catalog apps are skipped with a warning. Re-run is safe (existing repo dirs are skipped). Then act on the secrets warning, encrypt the `.env`, and apply.
 
 ## Removing an app
 
