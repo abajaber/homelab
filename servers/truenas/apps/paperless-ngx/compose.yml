@@ -100,7 +100,7 @@ services:
       - TZ=America/toronto
 
   paperless:
-    image: ghcr.io/paperless-ngx/paperless-ngx:2.20.14
+    image: ghcr.io/paperless-ngx/paperless-ngx:2.20.15
     container_name: paperless
     restart: unless-stopped
     # Run directly as the apps:apps uid/gid the dataset is stamped with.
