@@ -63,7 +63,7 @@ services:
       - /lifecycle/ak
       - healthcheck
       timeout: 5s
-    image: ghcr.io/goauthentik/server:2025.12.1
+    image: ghcr.io/goauthentik/server:2025.12.4
     labels:
       traefik.enable: 'true'
       traefik.http.routers.authentik.entrypoints: websecure
@@ -163,7 +163,7 @@ services:
       - /lifecycle/ak
       - healthcheck
       timeout: 5s
-    image: ghcr.io/goauthentik/server:2025.12.1
+    image: ghcr.io/goauthentik/server:2025.12.4
     platform: linux/amd64
     privileged: false
     restart: unless-stopped
