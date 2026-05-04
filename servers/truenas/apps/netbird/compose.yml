@@ -9,7 +9,7 @@ services:
     - NB_SETUP_KEY=${NB_SETUP_KEY}
     - NB_MANAGEMENT_URL=https://netbird.bajaber.ca
     hostname: truenas
-    image: netbirdio/netbird:0.64.5
+    image: netbirdio/netbird:0.70.4
     network_mode: host
     restart: unless-stopped
     volumes:
