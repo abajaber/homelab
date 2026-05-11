@@ -87,7 +87,7 @@ services:
   # control runtime, not credentials. WEBUI_ENABLED exposes a log/config
   # viewer on 8265, gated by Authentik (no API to bypass).
   soularr:
-    image: mrusse08/soularr:v1.2.1
+    image: mrusse08/soularr:v1.2.2
     container_name: soularr
     restart: unless-stopped
     user: "568:568"
