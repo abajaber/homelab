@@ -16,7 +16,7 @@ networks:
 
 services:
   jellyfin:
-    image: jellyfin/jellyfin:10.11.8
+    image: jellyfin/jellyfin:10.11.10
     container_name: jellyfin
     restart: unless-stopped
     user: "568:568"
