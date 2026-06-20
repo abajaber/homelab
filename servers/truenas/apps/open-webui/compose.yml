@@ -25,6 +25,7 @@ services:
             - GPU-53c1e32f-a0d4-3a75-aed3-036ea12cd90a
             driver: nvidia
     environment:
+      ENABLE_OPENAI_API_PASSTHROUGH: ${ENABLE_OPENAI_API_PASSTHROUGH}
       GID: '568'
       GROUP_ID: '568'
       HOST: 0.0.0.0
@@ -63,7 +64,7 @@ services:
       - --fail
       - http://127.0.0.1:31028/health
       timeout: 5s
-    image: ghcr.io/open-webui/open-webui:0.7.2-cuda
+    image: ghcr.io/open-webui/open-webui:v0.9.6-cuda
     platform: linux/amd64
     ports:
     - mode: ingress
