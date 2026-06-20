@@ -44,6 +44,10 @@ services:
       # published — the only path in is traefik after authentik forward-auth.
       - ND_EXTAUTH_USERHEADER=X-authentik-username
       - ND_EXTAUTH_TRUSTEDSOURCES=0.0.0.0/0,::/0
+      # m3u8 auto-import: scan /music/playlists/_m3u/*.m3u8 (path is relative
+      # to ND_MUSICFOLDER). The music-sync service writes one m3u8 per source
+      # there; Navidrome auto-imports them on each scan as public playlists.
+      - ND_PLAYLISTSPATH=playlists/_m3u
     volumes:
       - /mnt/redsea/apps/navidrome/data:/data
       - /mnt/redsea/arr/media/music:/music:ro

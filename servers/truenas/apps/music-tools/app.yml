@@ -14,3 +14,7 @@ folders:
   - /mnt/redsea/arr/torrents/music
   - /mnt/redsea/arr/torrents/music/incomplete
   - /mnt/redsea/arr/media/music/explo
+  # music-sync output — Navidrome scans /music/playlists/_m3u/ for m3u8 files
+  # via ND_PLAYLISTSPATH=playlists/_m3u and auto-imports them.
+  - /mnt/redsea/arr/media/music/playlists
+  - /mnt/redsea/arr/media/music/playlists/_m3u

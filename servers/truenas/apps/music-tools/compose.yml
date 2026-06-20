@@ -46,7 +46,7 @@ services:
   # forwarded on the home router for upload reciprocation; without it,
   # firewalled peers queue you indefinitely.
   slskd:
-    image: slskd/slskd:0.22.5
+    image: slskd/slskd:0.25.1
     container_name: slskd
     restart: unless-stopped
     user: "568:568"
@@ -145,3 +145,46 @@ services:
       - /mnt/redsea/arr/torrents/music:/slskd
     networks:
       - media-internal
+
+  # Single yt-dlp daemon, two input shapes:
+  #   /sources/yt/*.url      -> yt-dlp <url> (full YT Music playlist)
+  #   /sources/spotify/*.csv -> per-row ytmsearch5: "<Artist> - <Title>"
+  #                             pick best (prefer "* - Topic" uploader,
+  #                             then duration closest to CSV duration)
+  # Both write to /music/<album-artist>/<album>/... and m3u8 files to
+  # /music/playlists/_m3u/. 256 kbps M4A requires /config/cookies.txt — a
+  # logged-in YT Music Premium session export. Without it, downloads
+  # silently downgrade to 128 kbps.
+  #
+  # The inner sync_yt.py / sync_csv.py scripts live in the repo at
+  # scripts/music-sync/ and are deployed to the box at
+  # /mnt/redsea/apps/music-tools/music-sync/scripts/ via ./scripts/ot.py
+  # write — the entrypoint bind-mounts that path RO so we can iterate on
+  # the Python without re-applying compose.
+  music-sync:
+    image: python:3.12-slim
+    container_name: music-sync
+    restart: unless-stopped
+    user: "568:568"
+    environment:
+      - TZ=America/toronto
+    volumes:
+      - /mnt/redsea/apps/music-tools/music-sync/config:/config
+      - /mnt/redsea/apps/music-tools/music-sync/sources:/sources:ro
+      - /mnt/redsea/apps/music-tools/music-sync/scripts:/scripts:ro
+      - /mnt/redsea/arr/media/music:/music
+    networks:
+      - media-internal
+    entrypoint:
+      - sh
+      - -c
+      - |
+        set -e
+        apt-get update -qq && apt-get install -y -qq --no-install-recommends ffmpeg ca-certificates >/dev/null
+        pip install --quiet --no-cache-dir --root-user-action=ignore yt-dlp
+        mkdir -p /config/archives /config/logs /music/playlists/_m3u
+        while :; do
+          [ -f /scripts/sync_yt.py ]  && python3 /scripts/sync_yt.py  || echo "sync_yt.py missing"
+          [ -f /scripts/sync_csv.py ] && python3 /scripts/sync_csv.py || echo "sync_csv.py missing"
+          sleep 21600
+        done
