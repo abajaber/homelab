@@ -29,3 +29,6 @@ __pycache__/
 # servers/<host>/apps/<app>/.env. Do NOT add `*.env` to this gitignore — the
 # pre-commit hook (.githooks/pre-commit) refuses cleartext .env files, and the
 # apply-time check in the playbooks does the same before secrets ship anywhere.
+
+# Local scratch
+tmp
