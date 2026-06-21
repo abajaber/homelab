@@ -39,6 +39,11 @@ services:
       - TZ=America/toronto
     volumes:
       - /mnt/redsea/apps/ollama/models:/models
+    # Loopback-only host port so host-networked Home Assistant can reach Ollama at
+    # http://127.0.0.1:11434 (Open WebUI keeps using the ai-net DNS name). Bound to
+    # 127.0.0.1 so it is NOT exposed on the LAN.
+    ports:
+      - "127.0.0.1:11434:11434"
     networks:
       - ai-net
     healthcheck:
@@ -59,19 +64,18 @@ services:
       ollama:
         condition: service_healthy
     environment:
-      - MODELS=gemma4:e4b
+      - MODELS=qwen3.5:4b qwen3:4b
     entrypoint:
       - sh
       - -c
       - |
-        set -eu
+        set -u
         for m in $$MODELS; do
           echo "==> pulling $$m"
           curl -fsS -X POST http://ollama:11434/api/pull \
             -H 'Content-Type: application/json' \
             --data "{\"name\":\"$$m\",\"stream\":false}" \
-            | head -c 4000
-          echo
+            && echo " OK $$m" || echo " FAIL $$m"
         done
         echo "bootstrap complete"
     networks:

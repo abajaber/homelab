@@ -7,8 +7,10 @@
 #                     HA reaches it via the wyoming-openai bridge.
 #   wyoming-openai  : Wyoming->OpenAI bridge so HA can speak via Kokoro (EN).
 #   wyoming-piper   : Wyoming TTS, Arabic voice (Kokoro has no Arabic).
-#   wyoming-whisper : Wyoming STT — GPU faster-whisper, multilingual large-v3
-#                     (NOT distil: distil is English-only and breaks Arabic).
+#   wyoming-whisper : Wyoming STT — GPU faster-whisper, multilingual `medium`
+#                     (better Arabic than small; shares the 6GB GPU with the
+#                     qwen3.5:4b LLM, so it's tight — Ollama CPU-offloads a little
+#                     when both are hot. NOT distil — distil is English-only).
 #   openwakeword    : Wyoming wake-word detection (CPU; optional until a
 #                     mic'd satellite exists).
 #
@@ -26,25 +28,18 @@ volumes:
 
 services:
   kokoro-fastapi:
-    image: ghcr.io/remsky/kokoro-fastapi-gpu:v0.5.0
+    # Kokoro runs on CPU (not GPU): the 6GB GPU is fully committed to Whisper
+    # `medium` + the qwen3.5:4b LLM, so a GPU Kokoro OOMs. Kokoro is a tiny 82M
+    # model that's ~real-time on CPU, so this frees the GPU for STT+LLM and keeps
+    # TTS working for both HA and Open WebUI.
+    image: ghcr.io/remsky/kokoro-fastapi-cpu:v0.5.0
     container_name: kokoro-fastapi
     restart: unless-stopped
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - capabilities:
-                - gpu
-              driver: nvidia
-              device_ids:
-                - GPU-53c1e32f-a0d4-3a75-aed3-036ea12cd90a
     environment:
-      - USE_GPU=true
+      - USE_GPU=false
       - DOWNLOAD_MODEL=true
       - PYTHONUNBUFFERED=1
       - API_LOG_LEVEL=INFO
-      - NVIDIA_VISIBLE_DEVICES=GPU-53c1e32f-a0d4-3a75-aed3-036ea12cd90a
-      - NVIDIA_DRIVER_CAPABILITIES=all
       - TZ=America/toronto
     # Image runs as UID 1001, but the reconciler stamps dataset binds apps:apps
     # 770 (UID 568) and open-terminal can't chown to 1001 — so use Docker named
@@ -110,7 +105,7 @@ services:
       - PUID=568
       - PGID=568
       - TZ=America/toronto
-      - WHISPER_MODEL=large-v3
+      - WHISPER_MODEL=medium-int8
       - WHISPER_BEAM=1
       - WHISPER_LANG=auto
       - NVIDIA_VISIBLE_DEVICES=GPU-53c1e32f-a0d4-3a75-aed3-036ea12cd90a

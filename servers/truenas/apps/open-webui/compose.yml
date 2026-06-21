@@ -3,6 +3,10 @@ configs:
     content: '[{"read_only": false, "mount_path": "/mnt/permission/redis_redis_data",
       "is_temporary": true, "identifier": "redis_redis_data", "recursive": true, "mode":
       "check", "uid": 568, "gid": 568, "chmod": null}]'
+networks:
+  proxy:
+    external: true
+    name: proxy
 services:
   open-webui:
     cap_drop:
@@ -65,12 +69,19 @@ services:
       - http://127.0.0.1:31028/health
       timeout: 5s
     image: ghcr.io/open-webui/open-webui:v0.9.6-cuda
+    labels:
+      traefik.docker.network: proxy
+      traefik.enable: 'true'
+      traefik.http.routers.open-webui.entrypoints: websecure
+      traefik.http.routers.open-webui.rule: Host(`openwebui.bajaber.ca`)
+      traefik.http.routers.open-webui.tls: 'true'
+      traefik.http.routers.open-webui.tls.certresolver: cloudflare
+      traefik.http.routers.open-webui.middlewares: authentik@docker
+      traefik.http.services.open-webui.loadbalancer.server.port: '31028'
+    networks:
+      default: {}
+      proxy: {}
     platform: linux/amd64
-    ports:
-    - mode: ingress
-      protocol: tcp
-      published: 31028
-      target: 31028
     privileged: false
     restart: unless-stopped
     security_opt:
