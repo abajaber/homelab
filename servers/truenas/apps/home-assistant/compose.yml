@@ -2,8 +2,9 @@
 # Home Assistant Core (container). network_mode: host is REQUIRED for Google
 # Cast + mDNS/zeroconf discovery. ZHA uses the Sonoff ZNP dongle passed through
 # by its stable by-id path, mapped to the SAME path in-container so the existing
-# ZHA config entry needs no edit. Pinned to 2025.7.4 to match the source VM for
-# a byte-clean config restore — upgrade only AFTER the migration is verified.
+# ZHA config entry needs no edit. HAOS migration verified; upgraded 2025.7.4 ->
+# 2026.6.4 on 2026-06-21 after a breaking-changes review (ZHA OTA YAML dropped,
+# light kelvin -> color_temp_kelvin). See MIGRATION.md.
 #
 # Reached from outside via Traefik's FILE provider (a host-net container can't be
 # discovered by docker labels) — see traefik-file-provider.snippet.yml.
@@ -11,7 +12,7 @@
 # If ZHA can't open the serial device on first boot, set privileged: true.
 services:
   home-assistant:
-    image: ghcr.io/home-assistant/home-assistant:2025.7.4
+    image: ghcr.io/home-assistant/home-assistant:2026.6.4
     container_name: home-assistant
     restart: unless-stopped
     network_mode: host
