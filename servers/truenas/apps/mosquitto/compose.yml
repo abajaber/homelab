@@ -1,0 +1,45 @@
+---
+# Mosquitto MQTT broker for Home Assistant (and the external Frigate at .170).
+# Pinned to 2.0.x: the 2.1.x line deprecates the password_file directive used
+# below. The container is self-contained — it writes mosquitto.conf and
+# (re)creates the password file on every boot, so the empty dataset created on
+# first apply needs no pre-staged files.
+#
+# No `user:` on purpose: the image entrypoint starts as root, chowns the
+# /mosquitto binds to its own uid (1883), then drops privileges. The password is
+# substituted into the command/healthcheck by the reconciler from the sibling
+# vault-encrypted .env (${MQTT_PASSWORD}) — nothing is left as a $-var, so docker
+# compose interpolation on TrueNAS is a no-op (and HA's existing MQTT config
+# entry stays valid since we reuse the old broker password for user homeassistant).
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2.0.22
+    container_name: mosquitto
+    restart: unless-stopped
+    environment:
+      - TZ=America/toronto
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        cat > /mosquitto/config/mosquitto.conf <<EOF
+        persistence true
+        persistence_location /mosquitto/data/
+        listener 1883
+        allow_anonymous false
+        password_file /mosquitto/config/passwd
+        EOF
+        mosquitto_passwd -b -c /mosquitto/config/passwd homeassistant '${MQTT_PASSWORD}'
+        exec /usr/sbin/mosquitto -c /mosquitto/config/mosquitto.conf
+    ports:
+      - "1883:1883"
+    volumes:
+      - /mnt/redsea/apps/mosquitto/config:/mosquitto/config
+      - /mnt/redsea/apps/mosquitto/data:/mosquitto/data
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -h 127.0.0.1 -u homeassistant -P '${MQTT_PASSWORD}' -t 'test' -E || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s

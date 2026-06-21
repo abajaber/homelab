@@ -1,0 +1,37 @@
+# ---------------------------------------------------------------------------
+# NOT auto-applied. At cutover, MERGE these routers/services into the live file
+#   /mnt/redsea/apps/traefik/file-provider.yml   (Traefik watches it; no restart)
+# A host-net HA can't be routed by docker labels, so we point Traefik at the
+# host LAN IP:8123. Two routers mirror the arr UI+API split: the UI is
+# Authentik-gated; /api and /auth bypass it so the companion app, webhooks and
+# Cast media fetch keep working. Drop the middleware line if the double login
+# (Authentik then HA) annoys you — HA has its own strong auth + MFA.
+#
+# Prereq: a DNS record for homeassistant.bajaber.ca (grey-cloud / DNS-only is
+# fine; the cert uses the DNS-01 challenge).
+# ---------------------------------------------------------------------------
+http:
+  routers:
+    home-assistant:
+      rule: "Host(`homeassistant.bajaber.ca`)"
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: cloudflare
+      service: home-assistant
+      priority: 10
+      middlewares:
+        - authentik@docker
+    home-assistant-api:
+      rule: "Host(`homeassistant.bajaber.ca`) && (PathPrefix(`/api`) || PathPrefix(`/auth`))"
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: cloudflare
+      service: home-assistant
+      priority: 20
+  services:
+    home-assistant:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.1.138:8123"
