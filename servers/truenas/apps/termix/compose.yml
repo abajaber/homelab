@@ -29,6 +29,11 @@ services:
       - traefik.http.routers.termix.tls=true
       - traefik.http.routers.termix.tls.certresolver=cloudflare
       - traefik.http.services.termix.loadbalancer.server.port=8080
+      - homepage.group=Infrastructure
+      - homepage.name=Termix
+      - homepage.icon=mdi-console-network
+      - homepage.href=https://termix.bajaber.ca
+      - homepage.description=SSH terminal
 
   guacd:
     image: guacamole/guacd:1.6.0

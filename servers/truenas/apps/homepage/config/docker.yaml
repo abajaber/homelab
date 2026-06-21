@@ -1,0 +1,5 @@
+# Docker connection for label discovery. The homepage container mounts the
+# host socket read-only (see compose.yml); this names that instance. Every
+# container carrying homepage.* labels on this daemon is auto-discovered.
+my-docker:
+  socket: /var/run/docker.sock

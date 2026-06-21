@@ -49,6 +49,15 @@ services:
       - traefik.http.routers.qbit-vpn.tls=true
       - traefik.http.routers.qbit-vpn.tls.certresolver=cloudflare
       - traefik.http.services.qbit-vpn.loadbalancer.server.port=8080
+      - homepage.group=Downloads
+      - homepage.name=qBittorrent (VPN)
+      - homepage.icon=qbittorrent.png
+      - homepage.href=https://qbit-vpn.bajaber.ca
+      - homepage.description=Torrents (VPN)
+      - homepage.widget.type=qbittorrent
+      - homepage.widget.url=http://gluetun:8080
+      - homepage.widget.username={{HOMEPAGE_VAR_QBIT_VPN_USER}}
+      - homepage.widget.password={{HOMEPAGE_VAR_QBIT_VPN_PASS}}
       - traefik.http.routers.qbit-vpn.middlewares=authentik@docker
       - traefik.http.routers.qbit-vpn.priority=10
       - traefik.http.routers.qbit-vpn-api.rule=Host(`qbit-vpn.bajaber.ca`) && PathPrefix(`/api/v2`)

@@ -161,6 +161,14 @@ services:
       - traefik.http.routers.paperless.tls=true
       - traefik.http.routers.paperless.tls.certresolver=cloudflare
       - traefik.http.services.paperless.loadbalancer.server.port=8000
+      - homepage.group=Documents
+      - homepage.name=Paperless-ngx
+      - homepage.icon=paperless-ngx.png
+      - homepage.href=https://paperless.bajaber.ca
+      - homepage.description=Document archive
+      - homepage.widget.type=paperlessngx
+      - homepage.widget.url=http://paperless:8000
+      - homepage.widget.key={{HOMEPAGE_VAR_PAPERLESS_KEY}}
 
   # AI companions. Both reach Ollama at http://ollama:11434 over `ai-net`,
   # and reach paperless at http://paperless:8000 over the compose default
@@ -198,6 +206,11 @@ services:
       - traefik.http.routers.paperless-ai.tls=true
       - traefik.http.routers.paperless-ai.tls.certresolver=cloudflare
       - traefik.http.services.paperless-ai.loadbalancer.server.port=3000
+      - homepage.group=Documents
+      - homepage.name=Paperless-AI
+      - homepage.icon=mdi-robot
+      - homepage.href=https://paperless-ai.bajaber.ca
+      - homepage.description=AI tagging
       - traefik.http.routers.paperless-ai.middlewares=authentik@docker
 
   paperless-gpt:
@@ -239,4 +252,9 @@ services:
       - traefik.http.routers.paperless-gpt.tls=true
       - traefik.http.routers.paperless-gpt.tls.certresolver=cloudflare
       - traefik.http.services.paperless-gpt.loadbalancer.server.port=8080
+      - homepage.group=Documents
+      - homepage.name=Paperless-GPT
+      - homepage.icon=mdi-robot-happy
+      - homepage.href=https://paperless-gpt.bajaber.ca
+      - homepage.description=OCR + LLM tagging
       - traefik.http.routers.paperless-gpt.middlewares=authentik@docker

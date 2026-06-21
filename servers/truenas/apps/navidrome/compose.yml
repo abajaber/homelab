@@ -62,6 +62,16 @@ services:
       - traefik.http.routers.navidrome.tls=true
       - traefik.http.routers.navidrome.tls.certresolver=cloudflare
       - traefik.http.services.navidrome.loadbalancer.server.port=4533
+      - homepage.group=Media
+      - homepage.name=Navidrome
+      - homepage.icon=navidrome.png
+      - homepage.href=https://navidrome.bajaber.ca
+      - homepage.description=Music streaming
+      - homepage.widget.type=navidrome
+      - homepage.widget.url=http://navidrome:4533
+      - homepage.widget.user={{HOMEPAGE_VAR_NAVIDROME_USER}}
+      - homepage.widget.token={{HOMEPAGE_VAR_NAVIDROME_TOKEN}}
+      - homepage.widget.salt={{HOMEPAGE_VAR_NAVIDROME_SALT}}
       - traefik.http.routers.navidrome.middlewares=authentik@docker
       - traefik.http.routers.navidrome.priority=10
       # /rest is the Subsonic API used by mobile clients (Amperfy, Symfonium,

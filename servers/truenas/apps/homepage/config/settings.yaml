@@ -1,0 +1,41 @@
+---
+# Page-level config. Group ORDER + column layout below; the group names must
+# match the `homepage.group=` labels on the apps (and the services.yaml groups).
+# A new app whose homepage.group doesn't appear here still shows up — its group
+# is just appended at the end. So this file rarely needs touching when adding apps.
+title: Bajaber Homelab
+description: Self-hosted services on the bajaber.ca tailnet
+startUrl: https://www.bajaber.ca
+theme: dark
+color: slate
+headerStyle: boxedWidgets
+hideVersion: true
+disableUpdateCheck: true
+
+layout:
+  Infrastructure:
+    style: row
+    columns: 4
+  Media:
+    style: row
+    columns: 4
+  Arr:
+    style: row
+    columns: 3
+  Downloads:
+    style: row
+    columns: 4
+  Documents:
+    style: row
+    columns: 3
+  Home & IoT:
+    style: row
+    columns: 4
+  AI:
+    style: row
+    columns: 2
+
+quicklaunch:
+  searchDescriptions: true
+  hideInternetSearch: false
+  showSearchSuggestions: true

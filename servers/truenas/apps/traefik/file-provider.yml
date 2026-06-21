@@ -1,0 +1,79 @@
+# Traefik dynamic config (file provider) — SOURCE OF TRUTH.
+#
+# Routes host-networked backends that Traefik's docker provider can't
+# auto-discover (host-net containers aren't on the `proxy` bridge, so they have
+# no discoverable container IP). Each backend is reached at the box's LAN IP
+# 192.168.1.138:<port>.
+#
+# Traefik watches this file (providers.file.watch: true in traefik.yml) and
+# hot-reloads on change — no restart needed. It lives on the box at
+# /mnt/redsea/apps/traefik/file-provider.yml; TrueNAS ships only compose bodies,
+# so push edits out-of-band:
+#   ./scripts/ot.py write /mnt/apps/traefik/file-provider.yml < servers/truenas/apps/traefik/file-provider.yml
+#
+# Forward-auth pattern (mirrors the arr/qBittorrent stack): the UI router is
+# gated by authentik@docker (priority 10); a higher-priority (20) router for the
+# app's API path bypasses Authentik so programmatic clients (and the SPA's XHR)
+# authenticate with the app's own credentials instead of an Authentik session.
+http:
+  routers:
+    truenas:
+      rule: "Host(`truenas.bajaber.ca`)"
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: cloudflare
+      service: truenas
+    home-assistant:
+      rule: "Host(`homeassistant.bajaber.ca`)"
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: cloudflare
+      service: home-assistant
+      priority: 10
+      middlewares:
+        - authentik@docker
+    home-assistant-api:
+      rule: "Host(`homeassistant.bajaber.ca`) && (PathPrefix(`/api`) || PathPrefix(`/auth`))"
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: cloudflare
+      service: home-assistant
+      priority: 20
+    # AdGuard Home (host-networked, UI on :3000). UI behind Authentik; the
+    # /control API bypasses Authentik (AdGuard's own admin Basic Auth protects
+    # it) so tooling and the web UI's XHR calls work.
+    adguard:
+      rule: "Host(`adguard.bajaber.ca`)"
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: cloudflare
+      service: adguard
+      priority: 10
+      middlewares:
+        - authentik@docker
+    adguard-api:
+      rule: "Host(`adguard.bajaber.ca`) && PathPrefix(`/control`)"
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: cloudflare
+      service: adguard
+      priority: 20
+
+  services:
+    truenas:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.1.138:8080"
+    home-assistant:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.1.138:8123"
+    adguard:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.1.138:3000"

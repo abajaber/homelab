@@ -35,3 +35,8 @@ services:
       - traefik.http.routers.open-terminal.tls=true
       - traefik.http.routers.open-terminal.tls.certresolver=cloudflare
       - traefik.http.services.open-terminal.loadbalancer.server.port=8000
+      - homepage.group=Infrastructure
+      - homepage.name=Open Terminal
+      - homepage.icon=mdi-console
+      - homepage.href=https://open-terminal.bajaber.ca
+      - homepage.description=Web terminal API

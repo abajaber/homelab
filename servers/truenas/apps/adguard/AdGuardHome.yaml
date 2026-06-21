@@ -1,0 +1,265 @@
+# AdGuard Home configuration — SOURCE OF TRUTH (config as code).
+#
+# This is a TEMPLATE. Two tokens are rendered at push time from the sibling
+# vault-encrypted .env by scripts/adguard_push_config.py:
+#   __ADGUARD_PASSWORD_HASH__  -> ADGUARD_PASSWORD_HASH (bcrypt of the admin pw)
+#   __TRUENAS_TS_IP__          -> TRUENAS_TS_IP (the `truenas-scale` node's 100.x IP)
+#
+# Deploy: edit here -> `python scripts/adguard_push_config.py` -> restart the
+# adguard app so it reloads. AdGuard rewrites this file on UI changes, so keep
+# edits in the repo and re-push; don't click-edit managed settings.
+#
+# NOTE: AdGuard migrates schema_version upward and rewrites the live file on
+# first load — comments below survive only in this repo copy, not on the box.
+http:
+  pprof:
+    port: 6060
+    enabled: false
+  # Web UI / API on :3000 (all host interfaces — Traefik reaches it at
+  # 192.168.1.138:3000). Primary access is https://adguard.bajaber.ca via
+  # Traefik: UI behind Authentik SSO, the /control API bypasses Authentik and is
+  # protected by the admin login below. Direct http://<ip>:3000 also works.
+  address: 0.0.0.0:3000
+  session_ttl: 720h
+users:
+  - name: admin
+    password: __ADGUARD_PASSWORD_HASH__
+auth_attempts: 5
+block_auth_min: 15
+http_proxy: ""
+language: ""
+theme: auto
+dns:
+  # Bind explicit interface IPs, not 0.0.0.0 — avoids clashing with any
+  # loopback stub resolver and tailscale's 100.100.100.100. Tailscale IP must
+  # be up (the host-net `tailscale` app keeps tailscale0 up persistently).
+  bind_hosts:
+    - 127.0.0.1
+    - 192.168.1.138
+    - __TRUENAS_TS_IP__
+  port: 53
+  anonymize_client_ip: false
+  ratelimit: 0
+  ratelimit_subnet_len_ipv4: 24
+  ratelimit_subnet_len_ipv6: 56
+  ratelimit_whitelist: []
+  refuse_any: true
+  # Encrypted upstreams (DoH). Bootstrap resolves the upstream hostnames.
+  upstream_dns:
+    - https://dns.cloudflare.com/dns-query
+    - https://dns.quad9.net/dns-query
+  upstream_dns_file: ""
+  bootstrap_dns:
+    - 1.1.1.1
+    - 9.9.9.9
+    - 2606:4700:4700::1111
+  fallback_dns: []
+  upstream_mode: load_balance
+  fastest_timeout: 1s
+  allowed_clients: []
+  disallowed_clients: []
+  blocked_hosts:
+    - version.bind
+    - id.server
+    - hostname.bind
+  trusted_proxies:
+    - 127.0.0.0/8
+    - ::1/128
+  cache_size: 4194304
+  cache_ttl_min: 0
+  cache_ttl_max: 0
+  cache_optimistic: true
+  bogus_nxdomain: []
+  aaaa_disabled: false
+  enable_dnssec: false
+  edns_client_subnet:
+    custom_ip: ""
+    enabled: false
+    use_custom: false
+  max_goroutines: 300
+  handle_ddr: true
+  ipset: []
+  ipset_file: ""
+  bootstrap_prefer_ipv6: false
+  upstream_timeout: 10s
+  private_networks: []
+  use_private_ptr_resolvers: true
+  local_ptr_upstreams: []
+  use_dns64: false
+  dns64_prefixes: []
+  serve_http3: false
+  use_http3_upstreams: false
+  serve_plain_dns: true
+  hostsfile_enabled: true
+tls:
+  enabled: false
+  server_name: ""
+  force_https: false
+  port_https: 443
+  port_dns_over_tls: 853
+  port_dns_over_quic: 853
+  port_dnscrypt: 0
+  dnscrypt_config_file: ""
+  allow_unencrypted_doh: false
+  certificate_chain: ""
+  private_key: ""
+  certificate_path: ""
+  private_key_path: ""
+  strict_sni_check: false
+querylog:
+  dir_path: ""
+  ignored: []
+  interval: 2160h
+  size_memory: 1000
+  enabled: true
+  file_enabled: true
+statistics:
+  dir_path: ""
+  ignored: []
+  interval: 24h
+  enabled: true
+filters:
+  - enabled: true
+    url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_1.txt
+    name: AdGuard DNS filter
+    id: 1
+  - enabled: true
+    url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_2.txt
+    name: AdAway Default Blocklist
+    id: 2
+whitelist_filters: []
+user_rules: []
+dhcp:
+  enabled: false
+  interface_name: ""
+  local_domain_name: lan
+  dhcpv4:
+    gateway_ip: ""
+    subnet_mask: ""
+    range_start: ""
+    range_end: ""
+    lease_duration: 86400
+    icmp_timeout_msec: 1000
+    options: []
+  dhcpv6:
+    range_start: ""
+    lease_duration: 86400
+    ra_slaac_only: false
+    ra_allow_slaac: false
+filtering:
+  blocking_ipv4: ""
+  blocking_ipv6: ""
+  blocked_services:
+    schedule:
+      time_zone: America/Toronto
+    ids: []
+  protection_disabled_until: null
+  safe_search:
+    enabled: false
+    bing: true
+    duckduckgo: true
+    ecosia: true
+    google: true
+    pixabay: true
+    yandex: true
+    youtube: true
+  blocking_mode: default
+  parental_block_host: family-block.dns.adguard.com
+  safebrowsing_block_host: standard-block.dns.adguard.com
+  # ===================================================================
+  # LOCAL DNS AS CODE — every *.bajaber.ca app, resolved to the box's
+  # Tailscale IP so tailnet clients reach Traefik over the tailnet.
+  # truenas.bajaber.ca and netbird.bajaber.ca are intentionally NOT here
+  # (they resolve via upstream). Add a new line + re-push when an app is added.
+  # ===================================================================
+  rewrites:
+    - domain: adguard.bajaber.ca
+      answer: __TRUENAS_TS_IP__
+    - domain: auth.bajaber.ca
+      answer: __TRUENAS_TS_IP__
+    - domain: bazarr.bajaber.ca
+      answer: __TRUENAS_TS_IP__
+    - domain: esphome.bajaber.ca
+      answer: __TRUENAS_TS_IP__
+    - domain: gotify.bajaber.ca
+      answer: __TRUENAS_TS_IP__
+    - domain: homeassistant.bajaber.ca
+      answer: __TRUENAS_TS_IP__
+    - domain: immich.bajaber.ca
+      answer: __TRUENAS_TS_IP__
+    - domain: jellyfin.bajaber.ca
+      answer: __TRUENAS_TS_IP__
+    - domain: jellyseerr.bajaber.ca
+      answer: __TRUENAS_TS_IP__
+    - domain: lidarr.bajaber.ca
+      answer: __TRUENAS_TS_IP__
+    - domain: navidrome.bajaber.ca
+      answer: __TRUENAS_TS_IP__
+    - domain: open-terminal.bajaber.ca
+      answer: __TRUENAS_TS_IP__
+    - domain: openwebui.bajaber.ca
+      answer: __TRUENAS_TS_IP__
+    - domain: paperless.bajaber.ca
+      answer: __TRUENAS_TS_IP__
+    - domain: paperless-ai.bajaber.ca
+      answer: __TRUENAS_TS_IP__
+    - domain: paperless-gpt.bajaber.ca
+      answer: __TRUENAS_TS_IP__
+    - domain: prowlarr.bajaber.ca
+      answer: __TRUENAS_TS_IP__
+    - domain: qbit-direct.bajaber.ca
+      answer: __TRUENAS_TS_IP__
+    - domain: qbit-vpn.bajaber.ca
+      answer: __TRUENAS_TS_IP__
+    - domain: radarr.bajaber.ca
+      answer: __TRUENAS_TS_IP__
+    - domain: slskd.bajaber.ca
+      answer: __TRUENAS_TS_IP__
+    - domain: sonarr.bajaber.ca
+      answer: __TRUENAS_TS_IP__
+    - domain: sonarr-tv.bajaber.ca
+      answer: __TRUENAS_TS_IP__
+    - domain: soularr.bajaber.ca
+      answer: __TRUENAS_TS_IP__
+    - domain: termix.bajaber.ca
+      answer: __TRUENAS_TS_IP__
+    - domain: traefik.bajaber.ca
+      answer: __TRUENAS_TS_IP__
+    - domain: uptime.bajaber.ca
+      answer: __TRUENAS_TS_IP__
+    - domain: www.bajaber.ca
+      answer: __TRUENAS_TS_IP__
+  safe_fs_patterns:
+    - /opt/adguardhome/work/data/userfilters/*
+  safebrowsing_cache_size: 1048576
+  safesearch_cache_size: 1048576
+  parental_cache_size: 1048576
+  cache_time: 30
+  filters_update_interval: 24
+  blocked_response_ttl: 10
+  filtering_enabled: true
+  parental_enabled: false
+  safebrowsing_enabled: false
+  protection_enabled: true
+clients:
+  runtime_sources:
+    whois: true
+    arp: true
+    rdns: true
+    dhcp: true
+    hosts: true
+  persistent: []
+log:
+  enabled: true
+  file: ""
+  max_backups: 0
+  max_size: 100
+  max_age: 3
+  compress: false
+  local_time: false
+  verbose: false
+os:
+  group: ""
+  user: ""
+  rlimit_nofile: 0
+schema_version: 27
