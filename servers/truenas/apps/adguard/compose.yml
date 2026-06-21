@@ -1,0 +1,41 @@
+---
+# AdGuard Home — network-wide DNS resolver + ad-blocking, primarily for the
+# Tailscale tailnet (Magic DNS).
+#
+# WHY host networking: the box's `tailscale` app runs host_network: true
+# (userspace: false), so the host owns the tailscale0 interface. Binding AdGuard
+# to the host network means it listens on the box's Tailscale IP — tailnet
+# clients can then use this box as their DNS server and resolve *.bajaber.ca to
+# it. The TrueNAS `tailscale` app advertises NO subnet routes, so the DNS
+# rewrites point app hostnames at the box's Tailscale IP directly (Traefik is
+# also host-networked on :443, reachable over the tailnet). See AdGuardHome.yaml.
+#
+# CONFIG AS CODE: AdGuardHome.yaml (this folder) is the source of truth for DNS
+# rewrites, upstreams, blocklists and the admin login. TrueNAS ships only the
+# compose body via app.update — it does NOT copy repo files — so the yaml is
+# pushed out-of-band into the conf bind dir with scripts/adguard_push_config.py
+# (renders the bcrypt hash + Tailscale IP from the vault .env, then ot.py write).
+# The reconciler creates the dataset + bind dirs on `apply` but does NOT track
+# the yaml for drift; re-push after editing it. AdGuard also rewrites this file
+# whenever you change settings in the UI, so treat the repo copy as canonical
+# and avoid click-ops for managed settings.
+#
+# PORT 53: nothing else on the host binds :53 (tailscale runs with
+# accept_dns: false, so no MagicDNS resolver; netbird/wt0 doesn't use 53). We
+# bind explicit interface IPs (LAN + Tailscale + loopback) in AdGuardHome.yaml
+# rather than 0.0.0.0 to dodge any stub-resolver / 100.100.100.100 overlap.
+services:
+  adguardhome:
+    image: adguard/adguardhome:v0.107.77
+    container_name: adguardhome
+    restart: unless-stopped
+    network_mode: host
+    cap_add:
+      - NET_BIND_SERVICE
+    environment:
+      - TZ=America/Toronto
+    volumes:
+      # Working data (query log, stats, filter lists, runtime DB).
+      - /mnt/redsea/apps/adguard/work:/opt/adguardhome/work
+      # Config dir — AdGuardHome.yaml is pushed here out-of-band (see above).
+      - /mnt/redsea/apps/adguard/conf:/opt/adguardhome/conf
