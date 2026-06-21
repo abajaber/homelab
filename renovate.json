@@ -39,6 +39,10 @@
       "versioning": "regex:^release-(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$"
     },
     {
+      "matchPackageNames": ["lscr.io/linuxserver/faster-whisper"],
+      "versioning": "regex:^gpu-v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)-ls(?<build>\\d+)$"
+    },
+    {
       "matchPackageNames": ["postgres", "alpine", "traefik", "valkey/valkey", "redis"],
       "matchUpdateTypes": ["patch"],
       "automerge": true
