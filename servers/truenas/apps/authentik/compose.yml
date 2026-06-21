@@ -128,6 +128,8 @@ services:
           cpus: '2'
           memory: 4096M
     environment:
+      AUTHENTIK_GOOGLE_CLIENT_ID: ${AUTHENTIK_GOOGLE_CLIENT_ID}
+      AUTHENTIK_GOOGLE_CLIENT_SECRET: ${AUTHENTIK_GOOGLE_CLIENT_SECRET}
       AUTHENTIK_POSTGRESQL__HOST: postgres
       AUTHENTIK_POSTGRESQL__NAME: authentik
       AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_POSTGRESQL_PASSWORD}
@@ -200,6 +202,13 @@ services:
       read_only: false
       source: /var/run/docker.sock
       target: /var/run/docker.sock
+      type: bind
+    - bind:
+        create_host_path: false
+        propagation: rprivate
+      read_only: true
+      source: /mnt/redsea/apps/authentik/blueprints
+      target: /blueprints/custom
       type: bind
   permissions:
     cap_add:

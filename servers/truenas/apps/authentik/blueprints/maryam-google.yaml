@@ -1,0 +1,44 @@
+# Google social-login source. Discovered + applied by the authentik-worker.
+#
+# Delivery (TrueNAS): this file is bind-mounted into the worker at
+# /blueprints/custom (see the bind in compose.yml). TrueNAS ships only the
+# compose body, not repo files, so the file itself is pushed to the box at
+# /mnt/redsea/apps/authentik/blueprints/ out-of-band:
+#   ./scripts/ot.py write /mnt/apps/authentik/blueprints/maryam-google.yaml \
+#       < servers/truenas/apps/authentik/blueprints/maryam-google.yaml
+# IMPORTANT: the extension must be .yaml — Authentik's discovery ignores .yml.
+#
+# Secrets resolve from the vault .env via !Env -> the worker's environment
+# (AUTHENTIK_GOOGLE_CLIENT_ID/SECRET, set in compose.yml).
+#
+# user_matching_mode: email_link  -> first Google login auto-links to the
+#   existing Authentik user with the same verified email, so existing users
+#   (e.g. maryam) sign in with no password and nothing to remember.
+# enrollment_flow omitted          -> a Google identity not matching an existing
+#   user's email cannot self-register (this instance is internet-facing).
+version: 1
+metadata:
+  name: maryam-google-login
+  labels:
+    blueprints.goauthentik.io/instance: maryam-google-login
+entries:
+  - model: authentik_sources_oauth.oauthsource
+    id: google-source
+    identifiers:
+      slug: google
+    attrs:
+      name: Google
+      provider_type: google
+      enabled: true
+      consumer_key: !Env AUTHENTIK_GOOGLE_CLIENT_ID
+      consumer_secret: !Env AUTHENTIK_GOOGLE_CLIENT_SECRET
+      user_matching_mode: email_link
+      authentication_flow: !Find [authentik_flows.flow, [slug, default-source-authentication]]
+
+  # Make the "Login with Google" button appear on the login screen.
+  - model: authentik_stages_identification.identificationstage
+    identifiers:
+      name: default-authentication-identification
+    attrs:
+      sources:
+        - !KeyOf google-source
