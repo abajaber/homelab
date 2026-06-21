@@ -1,0 +1,38 @@
+---
+# Uptime Kuma status monitor. Proxy + Authentik. The old HA add-on's data
+# (kuma.db) is copied into /mnt/redsea/apps/uptime-kuma/data on migration so
+# existing monitors/settings carry over. Runs as root (writes to apps:apps 770
+# dataset fine). The ZFS dataset bind supports POSIX locks (no SMB/NFS) so the
+# SQLite DB is safe.
+networks:
+  proxy:
+    external: true
+    name: proxy
+
+services:
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    container_name: uptime-kuma
+    restart: unless-stopped
+    environment:
+      - UPTIME_KUMA_PORT=3001
+      - TZ=America/toronto
+    volumes:
+      - /mnt/redsea/apps/uptime-kuma/data:/app/data
+    networks:
+      - proxy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.uptime-kuma.rule=Host(`uptime.bajaber.ca`)
+      - traefik.http.routers.uptime-kuma.entrypoints=websecure
+      - traefik.http.routers.uptime-kuma.tls=true
+      - traefik.http.routers.uptime-kuma.tls.certresolver=cloudflare
+      - traefik.http.routers.uptime-kuma.middlewares=authentik@docker
+      - traefik.http.services.uptime-kuma.loadbalancer.server.port=3001
+    healthcheck:
+      test: ["CMD", "extra/healthcheck"]
+      interval: 60s
+      timeout: 30s
+      retries: 5
+      start_period: 180s

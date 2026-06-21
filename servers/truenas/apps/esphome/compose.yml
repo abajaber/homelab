@@ -1,0 +1,39 @@
+---
+# ESPHome dashboard (build / flash / manage ESP devices). Bridge on `proxy`:
+# the only device is a networked ESP32 at a static IP (192.168.1.106), so
+# mDNS/host-networking isn't needed — HA's ESPHome integration talks to the
+# device directly, not to this dashboard. Gated by Authentik. No USB / not
+# privileged. ESPHOME_DASHBOARD_USE_PING keeps online-status working without mDNS.
+networks:
+  proxy:
+    external: true
+    name: proxy
+
+services:
+  esphome:
+    image: ghcr.io/esphome/esphome:2026.6.2
+    container_name: esphome
+    restart: unless-stopped
+    environment:
+      - TZ=America/toronto
+      - ESPHOME_DASHBOARD_USE_PING=true
+    volumes:
+      - /mnt/redsea/apps/esphome/config:/config
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - proxy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.esphome.rule=Host(`esphome.bajaber.ca`)
+      - traefik.http.routers.esphome.entrypoints=websecure
+      - traefik.http.routers.esphome.tls=true
+      - traefik.http.routers.esphome.tls.certresolver=cloudflare
+      - traefik.http.routers.esphome.middlewares=authentik@docker
+      - traefik.http.services.esphome.loadbalancer.server.port=6052
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import socket; socket.create_connection(('127.0.0.1',6052),3).close()\" || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s

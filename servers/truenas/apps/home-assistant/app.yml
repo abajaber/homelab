@@ -1,0 +1,5 @@
+---
+name: home-assistant
+# Deployed at cutover 2026-06-20. Dongle connected to TrueNAS; config restored
+# via HA onboarding. See MIGRATION.md for the runbook.
+enabled: true
