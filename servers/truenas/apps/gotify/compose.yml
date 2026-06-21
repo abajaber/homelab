@@ -1,0 +1,54 @@
+---
+# Gotify — self-hosted push-notification server. Apps/scripts POST a message to
+# /message with an *application token*; the Gotify Android app holds a WebSocket
+# open to /stream (authenticated with a *client token*) and shows the push.
+#
+# NO Authentik forward-auth on this app. The mobile app authenticates with its
+# own token (X-Gotify-Key header / ?token= query) and keeps a long-lived
+# WebSocket open — it can't perform the browser SSO redirect, so gating it behind
+# authentik@docker would silently break push delivery. Gotify's built-in
+# token auth (admin login + per-app/per-client tokens) IS the access control.
+#
+# Reachable at https://gotify.bajaber.ca over the tailnet (Traefik on :443 +
+# Cloudflare DNS-01 cert). A DNS rewrite for the host is in adguard/AdGuardHome.yaml.
+# The phone must be connected to Tailscale to reach the server and receive pushes.
+#
+# Storage: SQLite at /app/data/gotify.db on the per-app ZFS dataset (POSIX locks
+# work on a dataset bind — not SMB/NFS — so SQLite is safe). The `admin` user is
+# seeded on FIRST db creation from GOTIFY_DEFAULTUSER_PASS; changing the password
+# later won't update the existing user — do that in the Gotify UI (Users).
+networks:
+  proxy:
+    external: true
+    name: proxy
+
+services:
+  gotify:
+    image: gotify/server:2.9.1
+    container_name: gotify
+    restart: unless-stopped
+    environment:
+      - TZ=America/Toronto
+      - GOTIFY_DEFAULTUSER_NAME=admin
+      - GOTIFY_DEFAULTUSER_PASS=${GOTIFY_ADMIN_PASS}
+      - GOTIFY_SERVER_SSL_ENABLED=false
+    volumes:
+      - /mnt/redsea/apps/gotify/data:/app/data
+    networks:
+      - proxy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.gotify.rule=Host(`gotify.bajaber.ca`)
+      - traefik.http.routers.gotify.entrypoints=websecure
+      - traefik.http.routers.gotify.tls=true
+      - traefik.http.routers.gotify.tls.certresolver=cloudflare
+      - traefik.http.services.gotify.loadbalancer.server.port=80
+      - homepage.group=Infrastructure
+      - homepage.name=Gotify
+      - homepage.icon=gotify.png
+      - homepage.href=https://gotify.bajaber.ca
+      - homepage.description=Push notifications
+      - homepage.widget.type=gotify
+      - homepage.widget.url=http://gotify:80
+      - homepage.widget.key={{HOMEPAGE_VAR_GOTIFY_TOKEN}}
