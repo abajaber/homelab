@@ -1,0 +1,15 @@
+---
+# Info widgets across the top of the page (NOT per-service widgets — those are
+# attached to each app via homepage.widget.* labels / services.yaml).
+- resources:
+    label: System
+    cpu: true
+    memory: true
+- search:
+    provider: duckduckgo
+    target: _blank
+- datetime:
+    text_size: xl
+    format:
+      timeStyle: short
+      dateStyle: long

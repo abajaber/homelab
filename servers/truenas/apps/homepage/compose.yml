@@ -1,0 +1,93 @@
+---
+# Homepage (gethomepage.dev) — the fleet dashboard, served at https://www.bajaber.ca.
+#
+# DYNAMIC DISCOVERY (the whole point): Homepage reads the Docker socket
+# read-only and renders a tile for every container carrying `homepage.*` labels
+# — structurally identical to how Traefik's docker provider already discovers
+# `traefik.*` labels on every app in this repo. So a NEW app deployed the repo
+# way (joins the `proxy` network + carries homepage.* labels in its compose)
+# self-registers on the dashboard with NO edit here. The two label blocks live
+# side by side on each service; see this app's README.md for the convention.
+#
+# CONFIG AS CODE: the YAML under ./config (settings/widgets/services/docker.yaml)
+# is the source of truth for page layout, the info header, and the few things
+# that can't be label-discovered (the TrueNAS host UI, which is not a container).
+# TrueNAS ships only the compose body via app.update — it does NOT copy repo
+# files — so those files are pushed out-of-band into the config bind dir with
+# scripts/homepage_push_config.py (same pattern as adguard_push_config.py and
+# the Authentik blueprints). They are NOT tracked for drift; re-push after edits.
+#
+# SECRETS: every widget credential is referenced as a {{HOMEPAGE_VAR_*}}
+# placeholder — in BOTH ./config/services.yaml AND the homepage.* labels on other
+# apps. Homepage substitutes those from THIS container's own environment at
+# render time, so the real values live only in the vault-encrypted .env and
+# never appear in git. The arr keys and the Authentik token are reused from
+# those apps' vault .env files (copied into homepage/.env, since Homepage can't
+# read another app's .env); the rest are replace-me stubs you mint per app.
+#
+# HOMEPAGE_ALLOWED_HOSTS is mandatory behind a reverse proxy (v1.0+): without it
+# Homepage 4xx's on any non-localhost Host header. It must equal the served host.
+networks:
+  proxy:
+    external: true
+    name: proxy
+
+services:
+  homepage:
+    image: ghcr.io/gethomepage/homepage:v1.13.2
+    container_name: homepage
+    restart: unless-stopped
+    networks:
+      - proxy
+    volumes:
+      # Read-only Docker socket for homepage.* label discovery.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Config-as-code bind dir (pushed out-of-band — see header).
+      - /mnt/redsea/apps/homepage/config:/app/config
+    environment:
+      - HOMEPAGE_ALLOWED_HOSTS=www.bajaber.ca
+      - TZ=America/Toronto
+      # TrueNAS serves its API on :4443 with a SELF-SIGNED cert (truenas_api_insecure
+      # in vars.yml), so Node must not reject it. Internal-only dashboard; the other
+      # https widget target (immich) has a valid cert and is unaffected functionally.
+      - NODE_TLS_REJECT_UNAUTHORIZED=0
+      # --- widget credentials, substituted by the reconciler from the vault .env.
+      #     These land in the container env as HOMEPAGE_VAR_*, which Homepage then
+      #     resolves wherever {{HOMEPAGE_VAR_*}} appears in config or labels.
+      #     LIVE NOW (reused from arr/.env + authentik/.env):
+      - HOMEPAGE_VAR_SONARR_ANIME_KEY=${HOMEPAGE_VAR_SONARR_ANIME_KEY}
+      - HOMEPAGE_VAR_SONARR_TV_KEY=${HOMEPAGE_VAR_SONARR_TV_KEY}
+      - HOMEPAGE_VAR_RADARR_KEY=${HOMEPAGE_VAR_RADARR_KEY}
+      - HOMEPAGE_VAR_BAZARR_KEY=${HOMEPAGE_VAR_BAZARR_KEY}
+      - HOMEPAGE_VAR_PROWLARR_KEY=${HOMEPAGE_VAR_PROWLARR_KEY}
+      - HOMEPAGE_VAR_AUTHENTIK_KEY=${HOMEPAGE_VAR_AUTHENTIK_KEY}
+      # TrueNAS widget — reuses the reconciler's API key over the direct wss://:4443
+      # (TLS, never via Traefik → not subject to the plain-HTTP key-revoke).
+      - HOMEPAGE_VAR_TRUENAS_KEY=${HOMEPAGE_VAR_TRUENAS_KEY}
+      #     STUBS — fill in homepage/.env as you mint each (widget stays dark until then):
+      - HOMEPAGE_VAR_LIDARR_KEY=${HOMEPAGE_VAR_LIDARR_KEY}
+      - HOMEPAGE_VAR_SLSKD_KEY=${HOMEPAGE_VAR_SLSKD_KEY}
+      - HOMEPAGE_VAR_JELLYFIN_KEY=${HOMEPAGE_VAR_JELLYFIN_KEY}
+      - HOMEPAGE_VAR_JELLYSEERR_KEY=${HOMEPAGE_VAR_JELLYSEERR_KEY}
+      - HOMEPAGE_VAR_IMMICH_KEY=${HOMEPAGE_VAR_IMMICH_KEY}
+      - HOMEPAGE_VAR_NAVIDROME_USER=${HOMEPAGE_VAR_NAVIDROME_USER}
+      - HOMEPAGE_VAR_NAVIDROME_TOKEN=${HOMEPAGE_VAR_NAVIDROME_TOKEN}
+      - HOMEPAGE_VAR_NAVIDROME_SALT=${HOMEPAGE_VAR_NAVIDROME_SALT}
+      - HOMEPAGE_VAR_PAPERLESS_KEY=${HOMEPAGE_VAR_PAPERLESS_KEY}
+      - HOMEPAGE_VAR_QBIT_DIRECT_USER=${HOMEPAGE_VAR_QBIT_DIRECT_USER}
+      - HOMEPAGE_VAR_QBIT_DIRECT_PASS=${HOMEPAGE_VAR_QBIT_DIRECT_PASS}
+      - HOMEPAGE_VAR_QBIT_VPN_USER=${HOMEPAGE_VAR_QBIT_VPN_USER}
+      - HOMEPAGE_VAR_QBIT_VPN_PASS=${HOMEPAGE_VAR_QBIT_VPN_PASS}
+      - HOMEPAGE_VAR_GOTIFY_TOKEN=${HOMEPAGE_VAR_GOTIFY_TOKEN}
+      - HOMEPAGE_VAR_ADGUARD_USER=${HOMEPAGE_VAR_ADGUARD_USER}
+      - HOMEPAGE_VAR_ADGUARD_PASS=${HOMEPAGE_VAR_ADGUARD_PASS}
+      - HOMEPAGE_VAR_HASS_TOKEN=${HOMEPAGE_VAR_HASS_TOKEN}
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.homepage.rule=Host(`www.bajaber.ca`)
+      - traefik.http.routers.homepage.entrypoints=websecure
+      - traefik.http.routers.homepage.tls=true
+      - traefik.http.routers.homepage.tls.certresolver=cloudflare
+      - traefik.http.routers.homepage.middlewares=authentik@docker
+      - traefik.http.services.homepage.loadbalancer.server.port=3000

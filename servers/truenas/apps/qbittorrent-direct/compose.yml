@@ -45,6 +45,15 @@ services:
       - traefik.http.routers.qbit-direct.tls=true
       - traefik.http.routers.qbit-direct.tls.certresolver=cloudflare
       - traefik.http.services.qbit-direct.loadbalancer.server.port=8080
+      - homepage.group=Downloads
+      - homepage.name=qBittorrent (Direct)
+      - homepage.icon=qbittorrent.png
+      - homepage.href=https://qbit-direct.bajaber.ca
+      - homepage.description=Torrents (direct)
+      - homepage.widget.type=qbittorrent
+      - homepage.widget.url=http://qbittorrent-direct:8080
+      - homepage.widget.username={{HOMEPAGE_VAR_QBIT_DIRECT_USER}}
+      - homepage.widget.password={{HOMEPAGE_VAR_QBIT_DIRECT_PASS}}
       - traefik.http.routers.qbit-direct.middlewares=authentik@docker
       - traefik.http.routers.qbit-direct.priority=10
       - traefik.http.routers.qbit-direct-api.rule=Host(`qbit-direct.bajaber.ca`) && PathPrefix(`/api/v2`)

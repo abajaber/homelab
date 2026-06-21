@@ -181,6 +181,8 @@ filtering:
       answer: __TRUENAS_TS_IP__
     - domain: esphome.bajaber.ca
       answer: __TRUENAS_TS_IP__
+    - domain: gotify.bajaber.ca
+      answer: __TRUENAS_TS_IP__
     - domain: homeassistant.bajaber.ca
       answer: __TRUENAS_TS_IP__
     - domain: immich.bajaber.ca
@@ -224,6 +226,8 @@ filtering:
     - domain: traefik.bajaber.ca
       answer: __TRUENAS_TS_IP__
     - domain: uptime.bajaber.ca
+      answer: __TRUENAS_TS_IP__
+    - domain: www.bajaber.ca
       answer: __TRUENAS_TS_IP__
   safe_fs_patterns:
     - /opt/adguardhome/work/data/userfilters/*

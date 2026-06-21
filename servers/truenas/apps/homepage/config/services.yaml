@@ -1,0 +1,57 @@
+---
+# STATIC services — ONLY for endpoints that can't be label-discovered:
+#   * the TrueNAS Scale web UI (the host's own UI, not a container on this daemon)
+#   * host-networked apps whose delicate config we don't want to touch just to add
+#     a tile (AdGuard, Home Assistant) — reached by the box LAN IP, not container DNS
+#   * apps on isolated networks the dashboard can't reach by service name (Open WebUI)
+#   * Netbird (host-net mesh client, link only)
+#
+# Every ordinary containerised app describes itself with homepage.* labels in its
+# OWN compose.yml (the dynamic path) and must NOT be duplicated here. For a new
+# app, add labels to its compose — see this app's README.md.
+#
+# Widget creds are {{HOMEPAGE_VAR_*}} placeholders resolved from Homepage's own
+# environment (the vault .env); they never appear in cleartext here.
+- Infrastructure:
+    - TrueNAS Scale:
+        icon: truenas-scale.png
+        href: https://truenas.bajaber.ca
+        description: Storage + apps host
+        widget:
+          type: truenas
+          # Direct HTTPS API port (NOT via Traefik) — a key over plain HTTP is
+          # auto-revoked by TrueNAS. version 2 = websocket API (Scale 25.x).
+          url: https://truenas.bajaber.ca:4443
+          version: 2
+          key: "{{HOMEPAGE_VAR_TRUENAS_KEY}}"
+          nasType: scale
+          enablePools: true
+    - AdGuard Home:
+        icon: adguard-home.png
+        href: https://adguard.bajaber.ca
+        description: DNS + ad-blocking
+        widget:
+          type: adguard
+          url: http://192.168.1.138:3000
+          username: "{{HOMEPAGE_VAR_ADGUARD_USER}}"
+          password: "{{HOMEPAGE_VAR_ADGUARD_PASS}}"
+    - Netbird:
+        icon: netbird.png
+        href: https://netbird.bajaber.ca
+        description: Mesh VPN client
+
+- Home & IoT:
+    - Home Assistant:
+        icon: home-assistant.png
+        href: https://homeassistant.bajaber.ca
+        description: Home automation
+        widget:
+          type: homeassistant
+          url: http://192.168.1.138:8123
+          key: "{{HOMEPAGE_VAR_HASS_TOKEN}}"
+
+- AI:
+    - Open WebUI:
+        icon: open-webui.png
+        href: https://openwebui.bajaber.ca
+        description: LLM chat (Ollama frontend)

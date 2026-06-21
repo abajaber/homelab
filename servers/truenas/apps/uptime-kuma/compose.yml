@@ -30,6 +30,11 @@ services:
       - traefik.http.routers.uptime-kuma.tls.certresolver=cloudflare
       - traefik.http.routers.uptime-kuma.middlewares=authentik@docker
       - traefik.http.services.uptime-kuma.loadbalancer.server.port=3001
+      - homepage.group=Infrastructure
+      - homepage.name=Uptime Kuma
+      - homepage.icon=uptime-kuma.png
+      - homepage.href=https://uptime.bajaber.ca
+      - homepage.description=Status monitoring
     healthcheck:
       test: ["CMD", "extra/healthcheck"]
       interval: 60s

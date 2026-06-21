@@ -45,6 +45,10 @@ services:
       IMMICH_LOG_LEVEL: log
       IMMICH_PORT: '32002'
       MACHINE_LEARNING_CACHE_FOLDER: /mlcache
+      # Unload ML models from VRAM after 60s idle (default 300) so the GPU frees
+      # up for the Home Assistant LLM + Whisper on the shared 6GB GTX 1660 Super.
+      # Cost: first smart-search/face job after idle reloads the model (~5-15s).
+      MACHINE_LEARNING_MODEL_TTL: '60'
       MPLCONFIGDIR: /mlcache/matplotlib
       NODE_ENV: production
       NVIDIA_DRIVER_CAPABILITIES: all
@@ -426,6 +430,15 @@ services:
       traefik.http.routers.immich.tls: 'true'
       traefik.http.routers.immich.tls.certresolver: cloudflare
       traefik.http.services.immich.loadbalancer.server.port: '30041'
+      homepage.group: Media
+      homepage.name: Immich
+      homepage.icon: immich.png
+      homepage.href: https://immich.bajaber.ca
+      homepage.description: Photo management
+      homepage.widget.type: immich
+      homepage.widget.url: https://immich.bajaber.ca
+      homepage.widget.key: '{{HOMEPAGE_VAR_IMMICH_KEY}}'
+      homepage.widget.version: 2
     networks:
       ix-internal-immich-net: {}
       proxy: {}
