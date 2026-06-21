@@ -1,0 +1,195 @@
+# Frigate config — TrueNAS deploy (image 0.16.4).
+#
+# IMPORTANT: this file is the SEED. Frigate's config migrator may reformat/stamp
+# `version:` on first boot, so the live /config/config.yml will drift from this
+# repo copy — that is expected (Frigate owns its config, like HA owns its config
+# dir). The reconciler does NOT ship this file; push it with scripts/ot.py before
+# first start (see README.md).
+#
+# Secrets are {FRIGATE_*} env vars (mandatory FRIGATE_ prefix, plain braces, NO $).
+# They are injected by the compose `environment:` from the vault .env. NOTE on the
+# go2rtc: section: go2rtc does NOT percent-decode passwords here (TESTED) — it sends
+# the value verbatim. So special chars must be stored LITERAL in the .env, NOT
+# percent-encoded: the door password's `^` is stored as `^` (storing `%5E` makes
+# go2rtc send the literal "%5E" and the camera rejects it: "wrong user/pass").
+
+mqtt:
+  enabled: true
+  # mosquitto is published on the TrueNAS host:1883; a bridge container reaches it
+  # via the host LAN IP (not 127.0.0.1, which would be the frigate container itself).
+  host: 192.168.1.138
+  port: 1883
+  user: homeassistant
+  password: "{FRIGATE_MQTT_PASSWORD}"
+
+# DETECTION on the NVIDIA GPU via the ONNX detector (yolov9-t @ 320), using the
+# -tensorrt image's onnxruntime TensorRT execution provider. ~1-1.5 GB VRAM.
+# IMPORTANT: Frigate 0.16 does NOT auto-download this model — yolov9-t-320.onnx
+# must be built and placed at the path below BEFORE first start (README.md).
+# Frigate builds+caches a TensorRT engine from the .onnx on first run (slow first
+# boot, a few minutes; cached under /config/model_cache afterwards).
+#
+# VRAM FALLBACK (if this contends with Ollama/whisper): swap this whole block for
+#   detectors:
+#     ov:
+#       type: openvino
+#       device: CPU
+#   model:
+#     width: 300
+#     height: 300
+#     input_tensor: nhwc
+#     input_pixel_format: bgr
+#     path: /openvino-model/ssdlite_mobilenet_v2.xml
+#     labelmap_path: /openvino-model/coco_91cl_bkgr.txt
+detectors:
+  onnx:
+    type: onnx
+
+model:
+  model_type: yolo-generic
+  width: 320
+  height: 320
+  input_tensor: nchw
+  input_dtype: float
+  path: /config/model_cache/yolov9-t-320.onnx
+  labelmap_path: /labelmap/coco-80.txt
+
+ffmpeg:
+  # NVIDIA NVDEC hardware decode (the GPU acceleration). Only the low-res detect
+  # substreams are decoded; record streams are stream-copied (no decode/encode).
+  # To eliminate ALL GPU/VRAM use, delete this line -> CPU decode (cheap at 640x360).
+  hwaccel_args: preset-nvidia
+
+detect:
+  enabled: true   # 0.16+ disables detection by default — must be explicit
+
+# go2rtc restream: each camera is pulled ONCE here and shared to Frigate
+# (record + detect) AND Home Assistant. HA consumes rtsp://<host>:8554/<name>
+# (MSE) and WebRTC on 8555 instead of hitting the cameras directly.
+go2rtc:
+  streams:
+    # NOTE: door (reolink doorbell) is NOT restreamed via go2rtc. It logs in as the
+    # existing `haos` account (reolink user slots are capped, so we reuse HA's
+    # account rather than add a `frigate` one), whose password contains `@`/`+` —
+    # chars go2rtc's RTSP URL parser can't pass. The door uses Frigate's DIRECT
+    # ffmpeg inputs below instead (Frigate auto-URL-encodes the password for ffmpeg).
+    # To bring the door into go2rtc (WebRTC live view in HA), use a reolink account
+    # with an ALPHANUMERIC password, then add door/door_sub streams here and point
+    # the inputs back at 127.0.0.1:8554.
+    living_room:
+      - "rtsp://admin:{FRIGATE_LIVING_PASSWORD}@192.168.1.241:8554/Streaming/Channels/101"
+    living_room_sub:
+      - "rtsp://admin:{FRIGATE_LIVING_PASSWORD}@192.168.1.241:8554/Streaming/Channels/102"
+    outdoor:
+      - "rtsp://admin:{FRIGATE_OUTDOOR_PASSWORD}@192.168.1.133:10554/tcp/av0_0"
+    outdoor_sub:
+      - "rtsp://admin:{FRIGATE_OUTDOOR_PASSWORD}@192.168.1.133:10554/tcp/av0_1"
+  webrtc:
+    candidates:
+      - 192.168.1.138:8555   # LAN IP for browser WebRTC; add a 100.x tailnet IP if viewing over Tailscale
+      - stun:8555
+
+cameras:
+  # door = Reolink Video Doorbell (192.168.1.123). The doorbell sensor is portrait;
+  # detect width/height below match the user's working values — VERIFY against the
+  # real Preview_01_sub geometry (ffprobe) if detection looks letterboxed.
+  door:
+    ffmpeg:
+      output_args:
+        record: preset-record-generic-audio-aac
+      # DIRECT to the reolink (not go2rtc) — Frigate auto-URL-encodes the password
+      # in inputs[].path, so the haos password's `@`/`+` are handled here (the
+      # go2rtc section can't parse them). User `haos` reused from HA's integration.
+      inputs:
+        - path: rtsp://haos:{FRIGATE_DOOR_PASSWORD}@192.168.1.123:554/Preview_01_main
+          roles:
+            - record
+        - path: rtsp://haos:{FRIGATE_DOOR_PASSWORD}@192.168.1.123:554/Preview_01_sub
+          roles:
+            - detect
+    detect:
+      width: 480
+      height: 640
+      fps: 10
+    objects: {}
+    motion:
+      mask: 0.621,0.135,0.6,0.547,0.179,0.532,0.002,0.551,-0.001,0.005,0.713,0.01
+      threshold: 32
+      contour_area: 10
+      improve_contrast: true
+    record:
+      enabled: true
+      retain:
+        days: 1
+        mode: all
+      alerts:
+        retain:
+          days: 30
+          mode: motion
+      detections:
+        retain:
+          days: 30
+          mode: motion
+
+  # living_room = Hikvision (192.168.1.241). Currently offline — that's fine; it
+  # will come online when reachable. No detect on the main stream.
+  living_room:
+    ffmpeg:
+      output_args:
+        record: preset-record-generic-audio-aac
+      inputs:
+        - path: rtsp://127.0.0.1:8554/living_room
+          input_args: preset-rtsp-restream
+          roles:
+            - record
+        - path: rtsp://127.0.0.1:8554/living_room_sub
+          input_args: preset-rtsp-restream
+          roles:
+            - detect
+    detect:
+      width: 640
+      height: 360
+      fps: 10
+    motion:
+      mask: 0.013,0.012,0.267,0.012,0.271,0.068,0.012,0.081
+    record:
+      enabled: true
+      retain:
+        days: 1
+        mode: all
+      detections:
+        retain:
+          days: 30
+          mode: motion
+
+  # outdoor = ONVIF cam (192.168.1.133). Currently offline — that's fine.
+  outdoor:
+    ffmpeg:
+      output_args:
+        record: preset-record-generic-audio-aac
+      inputs:
+        - path: rtsp://127.0.0.1:8554/outdoor
+          input_args: preset-rtsp-restream
+          roles:
+            - record
+        - path: rtsp://127.0.0.1:8554/outdoor_sub
+          input_args: preset-rtsp-restream
+          roles:
+            - detect
+    detect:
+      width: 640
+      height: 360
+      fps: 10
+    record:
+      enabled: true
+      retain:
+        days: 1
+        mode: all
+      alerts:
+        retain:
+          days: 30
+          mode: motion
+      detections:
+        retain:
+          days: 30
+          mode: motion

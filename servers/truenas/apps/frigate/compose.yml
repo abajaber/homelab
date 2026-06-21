@@ -1,0 +1,92 @@
+---
+# Frigate NVR on TrueNAS.
+#
+# GPU: the only GPU on this box is the NVIDIA GTX 1660 SUPER (no Intel iGPU), and
+# it is shared with Ollama / faster-whisper / kokoro / Jellyfin / Immich. So:
+#   - DETECTION runs on the GPU via the ONNX detector (yolov9-t @ 320) — the
+#     `-tensorrt` image + onnxruntime TensorRT EP. ~1-1.5 GB VRAM. Chosen because
+#     the other GPU models are barely used right now. NOTE: 0.16 does NOT auto-
+#     download the model — the yolov9-t-320.onnx must be built and pushed into
+#     /config/model_cache BEFORE first start (see README.md "GPU detection model").
+#   - DECODE uses NVIDIA NVDEC (`preset-nvidia` in config.yml) — small VRAM; only
+#     the low-res detect substreams are decoded, record streams are copied (-c copy).
+#   - The GPU is reserved below by UUID (like Jellyfin), with `video` capability
+#     (NVIDIA_DRIVER_CAPABILITIES=all) for NVDEC + CUDA/TensorRT for detection.
+#   - VRAM fallback: if this contends with the LLM/voice stack, switch the
+#     detector back to OpenVINO-CPU (one block in config.yml) — see README.md.
+#
+# config.yml is NOT shipped by the reconciler (TrueNAS ships only the compose
+# body). Push it out-of-band before first start (README.md). Secrets flow from
+# the sibling vault `.env` into the compose environment (reconciler substitutes),
+# then Frigate resolves `{FRIGATE_*}` in config.yml from the container env.
+#
+# Ports: HA runs network_mode:host on THIS host, so it reaches Frigate over the
+# loopback-published ports (127.0.0.1) — those stay off the LAN. WebRTC (8555) is
+# published on the LAN so a browser can reach it for live view. The UI is fronted
+# by Traefik (frigate:5000) + Authentik forward-auth; 5000 is never raw on the LAN.
+networks:
+  proxy:
+    external: true
+    name: proxy
+
+services:
+  frigate:
+    image: ghcr.io/blakeblackshear/frigate:0.16.4-tensorrt
+    container_name: frigate
+    restart: unless-stopped
+    stop_grace_period: 30s
+    shm_size: "256mb"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities:
+                - gpu
+              device_ids:
+                - GPU-53c1e32f-a0d4-3a75-aed3-036ea12cd90a
+              driver: nvidia
+    environment:
+      - TZ=America/toronto
+      # NVDEC needs the `video` driver capability; `all` is a superset that includes it.
+      - NVIDIA_VISIBLE_DEVICES=GPU-53c1e32f-a0d4-3a75-aed3-036ea12cd90a
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      # Secrets resolved by the reconciler from the vault .env, then read by
+      # Frigate at runtime as {FRIGATE_*} in config.yml.
+      - FRIGATE_DOOR_PASSWORD=${FRIGATE_DOOR_PASSWORD}
+      - FRIGATE_LIVING_PASSWORD=${FRIGATE_LIVING_PASSWORD}
+      - FRIGATE_OUTDOOR_PASSWORD=${FRIGATE_OUTDOOR_PASSWORD}
+      - FRIGATE_MQTT_PASSWORD=${FRIGATE_MQTT_PASSWORD}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /mnt/redsea/apps/frigate/config:/config
+      - /mnt/redsea/apps/frigate/media:/media/frigate
+      - type: tmpfs
+        target: /tmp/cache
+        tmpfs:
+          size: 1000000000
+    ports:
+      # HA (host-net, same box) consumes these over loopback only — NOT on the LAN.
+      - "127.0.0.1:5000:5000"      # Frigate API/UI (unauth) — HA integration
+      - "127.0.0.1:8554:8554"      # go2rtc RTSP restream — HA live view
+      - "127.0.0.1:1984:1984"      # go2rtc API + MSE fallback
+      # WebRTC must be reachable by the browser on the LAN (and tailnet).
+      - "8555:8555/tcp"            # WebRTC
+      - "8555:8555/udp"            # WebRTC
+    networks:
+      - proxy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.frigate.rule=Host(`frigate.bajaber.ca`)
+      - traefik.http.routers.frigate.entrypoints=websecure
+      - traefik.http.routers.frigate.tls=true
+      - traefik.http.routers.frigate.tls.certresolver=cloudflare
+      - traefik.http.routers.frigate.middlewares=authentik@docker
+      - traefik.http.services.frigate.loadbalancer.server.port=5000
+      - homepage.group=Cameras
+      - homepage.name=Frigate
+      - homepage.icon=frigate.png
+      - homepage.href=https://frigate.bajaber.ca
+      - homepage.description=NVR / object detection
+      - homepage.widget.type=frigate
+      - homepage.widget.url=http://frigate:5000

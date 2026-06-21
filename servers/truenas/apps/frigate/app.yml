@@ -1,0 +1,9 @@
+---
+name: frigate
+# Frigate NVR. NVIDIA GPU for BOTH detection (ONNX yolov9-t, -tensorrt image) and
+# NVDEC decode. config.yml is delivered OUT-OF-BAND (not drift-tracked) like the
+# Authentik blueprints — push it with scripts/ot.py before first start. The GPU
+# detection model (yolov9-t-320.onnx) is also NOT auto-downloaded and must be
+# built + pushed into /config/model_cache before first start. See README.md for
+# the deploy runbook and MIGRATION.md for repointing Home Assistant at go2rtc.
+enabled: true

@@ -6,7 +6,7 @@
 # the URL path. Bump truenas_api_version after upgrading TrueNAS and re-test.
 # Override truenas_api_url if the API is reached at a different hostname or
 # behind a non-default port.
-truenas_api_version: "v25.10.2"
+truenas_api_version: "v25.10.4"
 # Talk to TrueNAS directly on its HTTPS port (4443) rather than going through
 # Traefik. If Traefik fronts the box and forwards to it as plain HTTP, TrueNAS
 # auto-revokes API keys ("HTTP transport is insecure"), so we bypass the proxy.
