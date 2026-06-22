@@ -22,7 +22,7 @@ networks:
 
 services:
   navidrome:
-    image: deluan/navidrome:0.61.2
+    image: deluan/navidrome:0.62.0
     container_name: navidrome
     restart: unless-stopped
     user: "568:568"
