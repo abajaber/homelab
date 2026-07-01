@@ -139,7 +139,12 @@ services:
   # Authentik). Drops downloaded tracks into media/music/explo so Navidrome's
   # next scan picks them up and creates a playlist.
   explo:
-    image: ghcr.io/lumepart/explo:v0.11.5
+    # v1.x makes the web UI always-on (listens on :7288 inside the container).
+    # We keep explo headless on media-internal with NO published port, so the
+    # UI is unreachable externally and config stays env-driven (schedules below
+    # take precedence over the UI). Do NOT configure via the wizard -- it writes
+    # back to /opt/explo/.env and would drift this vault-managed file.
+    image: ghcr.io/lumepart/explo:v1.1.2
     container_name: explo
     restart: unless-stopped
     user: "568:568"
@@ -164,6 +169,9 @@ services:
     volumes:
       - /mnt/redsea/arr/media/music/explo:/data
       - /mnt/redsea/arr/torrents/music:/slskd
+      # v1 state dir (custom-playlists.json, path-templates.json, cover-art
+      # cache). Additive/ephemeral -- persisted so it survives recreate.
+      - /mnt/redsea/apps/music-tools/explo/config:/opt/explo/config
     networks:
       - media-internal
 
