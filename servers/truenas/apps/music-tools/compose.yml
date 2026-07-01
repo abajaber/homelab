@@ -139,7 +139,7 @@ services:
   # Authentik). Drops downloaded tracks into media/music/explo so Navidrome's
   # next scan picks them up and creates a playlist.
   explo:
-    image: ghcr.io/lumepart/explo:v0.11.5
+    image: ghcr.io/lumepart/explo:v1.1.2
     container_name: explo
     restart: unless-stopped
     user: "568:568"
