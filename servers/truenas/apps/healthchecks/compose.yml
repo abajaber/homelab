@@ -1,0 +1,115 @@
+---
+# Healthchecks (healthchecks/healthchecks OSS) — cron / background-job monitoring,
+# a "dead man's switch". Each check has a unique ping URL; a job curls that URL on
+# success. If a ping doesn't arrive within the check's period + grace, Healthchecks
+# fires the configured notification channels. Used here to watch the restic backup
+# systemd timers on host bazzite-z790 and push alerts through the existing Gotify.
+#
+# NO Authentik forward-auth on this app (same reasoning as gotify). The ping
+# endpoints (/ping/<uuid>, .../fail, .../start) are called by cron/curl on remote
+# hosts — they can't perform the browser SSO redirect, so gating the host behind
+# authentik@docker would silently break every ping. Healthchecks' own login
+# (password + optional email magic-link) is the access control for the dashboard;
+# pings authenticate by unguessable UUID. Keep the host off the tailnet-only edge
+# just like the rest of the fleet (Traefik :443 + Cloudflare DNS-01 cert, AdGuard
+# rewrite for the host). If you want the dashboard SSO-gated later, add a second
+# router that matches only the UI paths and leaves /ping/* and /api/* un-gated.
+#
+# Storage: SQLite at /data/hc.sqlite on the per-app ZFS dataset. Same call as
+# gotify/uptime-kuma — Healthchecks is a low-write single-instance app, SQLite is
+# officially supported, and a dataset bind supports POSIX locks (unlike SMB/NFS)
+# so SQLite is safe. One dataset == one complete backup via `zfs send`.
+#
+# The image runs as root (no USER in its Dockerfile, like gotify/uptime-kuma), so
+# it writes to the apps:apps 770 dataset fine — no init-perms sidecar / user: needed.
+# uWSGI runs DB migrations on startup and runs sendalerts/sendreports in-process.
+#
+# First-run admin (registration is closed): create the account once from the
+# TrueNAS UI -> System Settings -> Shell (or `docker exec`):
+#   docker exec -it healthchecks /opt/healthchecks/manage.py createsuperuser
+# then log in at https://healthchecks.bajaber.ca/accounts/login/ with that password.
+#
+# Gotify wiring is runtime-only (Healthchecks stores integrations in its DB, not
+# in compose): in the HC UI go Integrations -> Add Integration -> Gotify, set
+#   URL:   http://gotify:80         (internal container DNS on the proxy network)
+#   Token: <a Gotify APPLICATION token — Gotify UI -> Apps -> Create Application>
+#   Priority (optional): e.g. 5
+# INTEGRATIONS_ALLOW_PRIVATE_IPS=True below is REQUIRED for this to work: Gotify
+# resolves to a private address (container IP, or the tailnet/LAN IP behind
+# gotify.bajaber.ca), and Healthchecks refuses private targets by default.
+networks:
+  proxy:
+    external: true
+    name: proxy
+
+services:
+  healthchecks:
+    image: healthchecks/healthchecks:v4.2
+    container_name: healthchecks
+    restart: unless-stopped
+    # Run as apps:apps (568) to match the auto-stamped dataset perms on /data.
+    # The image's default user is non-root and != 568, so without this it can't
+    # create /data/hc.sqlite -> crash-loops ("starting" forever).
+    user: "568:568"
+    environment:
+      - TZ=America/Toronto
+      - SITE_ROOT=https://healthchecks.bajaber.ca
+      - SITE_NAME=Healthchecks
+      # localhost/127.0.0.1 for the image's HEALTHCHECK (curls localhost:8000);
+      # "healthchecks" for the Homepage widget's internal call (http://healthchecks:8000,
+      # Host header = container name). Missing hosts -> Django 400 DisallowedHost.
+      - ALLOWED_HOSTS=healthchecks.bajaber.ca,localhost,127.0.0.1,healthchecks
+      - SECRET_KEY=${HEALTHCHECKS_SECRET_KEY}
+      - DEBUG=False
+      - REGISTRATION_OPEN=False
+      # Trusted-user (SSO) auth: Authentik forward-auth on the UI router injects
+      # X-authentik-email; Django exposes it as HTTP_X_AUTHENTIK_EMAIL. Healthchecks
+      # logs in / auto-provisions that user — no password, no SMTP. The /ping and
+      # /api routers are un-gated (see labels) so cron pings + API-key calls bypass
+      # SSO. Backend is only reachable via Traefik, so the header can't be forged.
+      - REMOTE_USER_HEADER=HTTP_X_AUTHENTIK_EMAIL
+      # SQLite on the per-app dataset (persisted via the /data bind below).
+      - DB=sqlite
+      - DB_NAME=/data/hc.sqlite
+      # Required so the built-in Gotify integration can reach Gotify at a private
+      # address (http://gotify:80 / tailnet IP). Gotify is a built-in integration
+      # and is enabled by default — no APPRISE_ENABLED needed for it.
+      - INTEGRATIONS_ALLOW_PRIVATE_IPS=True
+      # Outbound email is unused (alerts go via Gotify). Set real SMTP + a routable
+      # DEFAULT_FROM_EMAIL here only if you want email magic-link login / reports.
+      - DEFAULT_FROM_EMAIL=healthchecks@bajaber.ca
+    volumes:
+      - /mnt/redsea/apps/healthchecks/data:/data
+    networks:
+      - proxy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.services.healthchecks.loadbalancer.server.port=8000
+      # UI router — Authentik SSO gated (priority 10)
+      - traefik.http.routers.healthchecks.rule=Host(`healthchecks.bajaber.ca`)
+      - traefik.http.routers.healthchecks.entrypoints=websecure
+      - traefik.http.routers.healthchecks.tls=true
+      - traefik.http.routers.healthchecks.tls.certresolver=cloudflare
+      - traefik.http.routers.healthchecks.middlewares=authentik@docker
+      - traefik.http.routers.healthchecks.priority=10
+      # Ping/API router — NO auth (priority 20 wins for these paths). Cron pings
+      # (/ping/<uuid>) + API-key calls (/api) must bypass the SSO redirect.
+      - traefik.http.routers.healthchecks-ping.rule=Host(`healthchecks.bajaber.ca`) && (PathPrefix(`/ping`) || PathPrefix(`/api`))
+      - traefik.http.routers.healthchecks-ping.entrypoints=websecure
+      - traefik.http.routers.healthchecks-ping.tls=true
+      - traefik.http.routers.healthchecks-ping.tls.certresolver=cloudflare
+      - traefik.http.routers.healthchecks-ping.service=healthchecks
+      - traefik.http.routers.healthchecks-ping.priority=20
+      - homepage.group=Infrastructure
+      - homepage.name=Healthchecks
+      - homepage.icon=healthchecks.png
+      - homepage.href=https://healthchecks.bajaber.ca
+      - homepage.description=Cron / backup monitoring
+      # Widget is optional. For it to show data, mint a read-only project API key in
+      # the HC UI (Project Settings -> API Access) and add HEALTHCHECKS_API_KEY to
+      # homepage/.env + homepage's compose environment (see homepage README). The
+      # link tile works regardless of whether the key is populated.
+      - homepage.widget.type=healthchecks
+      - homepage.widget.url=http://healthchecks:8000
+      - homepage.widget.key={{HOMEPAGE_VAR_HEALTHCHECKS_API_KEY}}

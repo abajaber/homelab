@@ -1,0 +1,58 @@
+---
+# iGotify Notification Assist — bridges Gotify -> Apple APNs so the iGotify iOS
+# app gets real background push. Gotify itself only streams over a WebSocket; iOS
+# suspends background sockets, so native push needs an APNs relay. This service
+# holds the Gotify WebSocket open (with a *client* token), and forwards each new
+# message to SecNtfy -> APNs -> iPhone. Only the notification is relayed; message
+# content is not stored on the intermediate SecNtfy server.
+#
+# NO Authentik forward-auth (same reasoning as gotify): the iGotify app talks to
+# this service's HTTP API to register its device, and can't do the browser SSO
+# redirect — gating it would break device registration. Reachable at
+# https://igotify.bajaber.ca over the tailnet (Traefik :443 + Cloudflare cert +
+# AdGuard rewrite). The phone must be on Tailscale/LAN only during SETUP; once the
+# device is registered, pushes arrive via APNs on any network.
+#
+# Storage: /app/data on the per-app ZFS dataset (device registrations / state).
+#
+# GOTIFY_CLIENT_TOKENS is a Gotify CLIENT token (Gotify UI -> Clients), not an app
+# token — required to receive/stream messages. Value in the vault .env.
+networks:
+  proxy:
+    external: true
+    name: proxy
+
+services:
+  igotify:
+    image: ghcr.io/androidseb25/igotify-notification-assist:latest
+    container_name: igotify
+    restart: unless-stopped
+    environment:
+      - TZ=America/Toronto
+      # Internal container DNS on the proxy network — the assist reaches Gotify
+      # directly, no need to go out through Traefik.
+      - GOTIFY_URLS=http://gotify:80
+      - GOTIFY_CLIENT_TOKENS=${IGOTIFY_GOTIFY_CLIENT_TOKEN}
+      # SecNtfy device push token(s), semicolon-separated, positionally paired with
+      # GOTIFY_URLS / GOTIFY_CLIENT_TOKENS above. Pre-seeded here because in-app
+      # (local-instance) registration can't reach the tailnet-only assist directly.
+      - SECNTFY_TOKENS=${IGOTIFY_SECNTFY_TOKEN}
+      - ENABLE_CONSOLE_LOG=true
+      - ENABLE_SCALAR_UI=true
+    volumes:
+      - /mnt/redsea/apps/igotify/data:/app/data
+    networks:
+      - proxy
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy
+      - traefik.http.routers.igotify.rule=Host(`igotify.bajaber.ca`)
+      - traefik.http.routers.igotify.entrypoints=websecure
+      - traefik.http.routers.igotify.tls=true
+      - traefik.http.routers.igotify.tls.certresolver=cloudflare
+      - traefik.http.services.igotify.loadbalancer.server.port=8080
+      - homepage.group=Infrastructure
+      - homepage.name=iGotify Assist
+      - homepage.icon=gotify.png
+      - homepage.href=https://igotify.bajaber.ca
+      - homepage.description=Gotify -> iOS APNs bridge
