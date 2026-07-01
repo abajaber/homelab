@@ -70,7 +70,7 @@ services:
       - --fail
       - http://127.0.0.1:31028/health
       timeout: 5s
-    image: ghcr.io/open-webui/open-webui:v0.9.6-cuda
+    image: ghcr.io/open-webui/open-webui:v0.10.2-cuda
     labels:
       traefik.docker.network: proxy
       traefik.enable: 'true'
