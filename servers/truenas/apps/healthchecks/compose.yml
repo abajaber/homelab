@@ -55,9 +55,10 @@ services:
       - TZ=America/Toronto
       - SITE_ROOT=https://healthchecks.bajaber.ca
       - SITE_NAME=Healthchecks
-      # localhost/127.0.0.1 required so the image's HEALTHCHECK (curls localhost:8000)
-      # doesn't get a Django 400 DisallowedHost -> container never goes healthy.
-      - ALLOWED_HOSTS=healthchecks.bajaber.ca,localhost,127.0.0.1
+      # localhost/127.0.0.1 for the image's HEALTHCHECK (curls localhost:8000);
+      # "healthchecks" for the Homepage widget's internal call (http://healthchecks:8000,
+      # Host header = container name). Missing hosts -> Django 400 DisallowedHost.
+      - ALLOWED_HOSTS=healthchecks.bajaber.ca,localhost,127.0.0.1,healthchecks
       - SECRET_KEY=${HEALTHCHECKS_SECRET_KEY}
       - DEBUG=False
       - REGISTRATION_OPEN=False
