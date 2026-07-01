@@ -183,7 +183,11 @@ filtering:
       answer: __TRUENAS_TS_IP__
     - domain: gotify.bajaber.ca
       answer: __TRUENAS_TS_IP__
+    - domain: healthchecks.bajaber.ca
+      answer: __TRUENAS_TS_IP__
     - domain: homeassistant.bajaber.ca
+      answer: __TRUENAS_TS_IP__
+    - domain: igotify.bajaber.ca
       answer: __TRUENAS_TS_IP__
     - domain: immich.bajaber.ca
       answer: __TRUENAS_TS_IP__
