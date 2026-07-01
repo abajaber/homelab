@@ -9,7 +9,7 @@ networks:
 
 services:
   sonarr:
-    image: linuxserver/sonarr:4.0.17
+    image: linuxserver/sonarr:4.0.19
     container_name: sonarr
     restart: unless-stopped
     environment:
@@ -53,7 +53,7 @@ services:
   # (/data/media/tv vs /data/media/anime). Internal hostname for Prowlarr
   # and Jellyseerr is `sonarr-tv:8989` on media-internal.
   sonarr-tv:
-    image: linuxserver/sonarr:4.0.17
+    image: linuxserver/sonarr:4.0.19
     container_name: sonarr-tv
     restart: unless-stopped
     environment:
@@ -92,7 +92,7 @@ services:
       - traefik.http.routers.sonarr-tv-api.priority=20
 
   radarr:
-    image: linuxserver/radarr:6.1.1
+    image: linuxserver/radarr:6.2.1
     container_name: radarr
     restart: unless-stopped
     environment:
@@ -170,7 +170,7 @@ services:
       - traefik.http.routers.bazarr-api.priority=20
 
   prowlarr:
-    image: linuxserver/prowlarr:2.3.5
+    image: linuxserver/prowlarr:2.4.0
     container_name: prowlarr
     restart: unless-stopped
     environment:
