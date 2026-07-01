@@ -146,10 +146,11 @@ allocation without starving the LLM.
 
 ## Version
 
-Pinned to **0.16.4** (not the current 0.17.2) on purpose: the camera/record schema
-here matches 0.16; **0.17 reworked record retention** (`record.retain` → tiered
-`record.continuous`/`record.motion`) and disables some go2rtc source types, so a
-0.17 jump needs config edits validated against a running 0.17. To move to 0.17 later:
-bump the image, change each camera's `record.retain: {days, mode}` to
-`record.continuous: {days}` (+ `record.motion` if wanted), keep `alerts.retain` /
-`detections.retain`, and watch the first boot log for schema errors.
+Running **0.17.2**. **0.17 reworked record retention**: `record.retain: {days, mode}`
+→ tiered `record.continuous: {days}` / `record.motion: {days}`. Each camera's
+continuous recording is `record.continuous.days: 1`; `alerts.retain` /
+`detections.retain` (30 days, mode motion) are unchanged. Other 0.17 breaks that do
+**not** affect this config: go2rtc drops `exec`/`expr`/`echo` sources (we only use
+`rtsp://`), `genai` moved under `objects.genai` (unused), `strftime_fmt` removed
+(unused), and detect `width`/`height` auto-detect changed (already set explicitly on
+every camera). Watch the first boot log for schema errors after any image bump.
