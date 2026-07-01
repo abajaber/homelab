@@ -1,4 +1,4 @@
-# Frigate config — TrueNAS deploy (image 0.16.4).
+# Frigate config — TrueNAS deploy (image 0.17.2).
 #
 # IMPORTANT: this file is the SEED. Frigate's config migrator may reformat/stamp
 # `version:` on first boot, so the live /config/config.yml will drift from this
@@ -119,9 +119,8 @@ cameras:
       improve_contrast: true
     record:
       enabled: true
-      retain:
+      continuous:
         days: 1
-        mode: all
       alerts:
         retain:
           days: 30
@@ -154,9 +153,8 @@ cameras:
       mask: 0.013,0.012,0.267,0.012,0.271,0.068,0.012,0.081
     record:
       enabled: true
-      retain:
+      continuous:
         days: 1
-        mode: all
       detections:
         retain:
           days: 30
@@ -182,9 +180,8 @@ cameras:
       fps: 10
     record:
       enabled: true
-      retain:
+      continuous:
         days: 1
-        mode: all
       alerts:
         retain:
           days: 30
