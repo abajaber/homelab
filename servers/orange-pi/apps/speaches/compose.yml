@@ -1,0 +1,54 @@
+---
+# OpenAI-compatible STT (Speaches / faster-whisper, CPU) for Open WebUI chat
+# voice input. This is SEPARATE from the HA wyoming-whisper — that one speaks the
+# Wyoming raw-TCP protocol and can't serve Open WebUI, which needs an OpenAI
+# /v1/audio/transcriptions HTTP endpoint. Both whisper models coexist on the Pi.
+#
+# CPU only — CTranslate2 gets no benefit from the NPU/Mali, so the NPU stays free
+# for rkllama. Pinned to the A76 big-core cluster (cpuset 4-7).
+#
+# Model: deepdml/faster-whisper-large-v3-turbo-ct2 — genuinely multilingual
+# (full large-v3 encoder → strong Arabic, 4 decoder layers → medium-class speed),
+# int8, kept resident (STT_MODEL_TTL=-1). Downloaded on first boot (~1.6GB) into
+# the named cache volume; one-time.
+#
+# Endpoint is UNAUTHENTICATED -> bound LAN-only (192.168.1.214:8000), matching the
+# existing LAN-exposed Pi voice posture. Never forward this to the WAN.
+#
+# Open WebUI: Admin -> Settings -> Audio -> Speech-to-Text:
+#   Engine   = OpenAI
+#   Base URL = http://192.168.1.214:8000/v1
+#   API Key  = none            (Speaches ignores it; the field just must be non-empty)
+#   Model    = deepdml/faster-whisper-large-v3-turbo-ct2
+# (Configure via the UI — env-var STT config won't override an engine already set
+# in the UI.)
+services:
+  speaches:
+    image: ghcr.io/speaches-ai/speaches:latest-cpu
+    container_name: speaches
+    restart: unless-stopped
+    cpuset: "4-7"                       # pin to the 4x Cortex-A76 big cores
+    ports:
+      - "192.168.1.214:8000:8000"       # LAN-only bind; endpoint is unauthenticated
+    environment:
+      WHISPER__INFERENCE_DEVICE: cpu
+      WHISPER__COMPUTE_TYPE: int8
+      WHISPER__CPU_THREADS: "4"
+      WHISPER__TTL: "-1"                # keep the model resident (no reload stalls)
+      ENABLE_UI: "false"                # STT API only; drop the Gradio UI
+      TZ: America/Toronto
+      # NOTE: this pinned image build (latest-cpu, Sep-2025) has no PRELOAD_MODELS
+      # field — the model (deepdml/faster-whisper-large-v3-turbo-ct2) downloads +
+      # loads lazily on the first transcription request (~1.6GB, one-time into the
+      # cache volume). WHISPER__TTL=-1 keeps it resident thereafter.
+    volumes:
+      - hf-hub-cache:/home/ubuntu/.cache/huggingface/hub
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
+volumes:
+  hf-hub-cache:

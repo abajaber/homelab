@@ -20,79 +20,13 @@ networks:
     external: true
     name: proxy
 services:
-  machine-learning:
-    cap_drop:
-    - ALL
-    depends_on:
-      permissions:
-        condition: service_completed_successfully
-    deploy:
-      resources:
-        limits:
-          cpus: '2'
-          memory: 4096M
-        reservations:
-          devices:
-          - capabilities:
-            - gpu
-            device_ids:
-            - GPU-53c1e32f-a0d4-3a75-aed3-036ea12cd90a
-            driver: nvidia
-    environment:
-      GID: '568'
-      GROUP_ID: '568'
-      HF_HOME: /mlcache
-      IMMICH_LOG_LEVEL: log
-      IMMICH_PORT: '32002'
-      MACHINE_LEARNING_CACHE_FOLDER: /mlcache
-      # Unload ML models from VRAM after 60s idle (default 300) so the GPU frees
-      # up for the Home Assistant LLM + Whisper on the shared 6GB GTX 1660 Super.
-      # Cost: first smart-search/face job after idle reloads the model (~5-15s).
-      MACHINE_LEARNING_MODEL_TTL: '60'
-      MPLCONFIGDIR: /mlcache/matplotlib
-      NODE_ENV: production
-      NVIDIA_DRIVER_CAPABILITIES: all
-      NVIDIA_VISIBLE_DEVICES: GPU-53c1e32f-a0d4-3a75-aed3-036ea12cd90a
-      PGID: '568'
-      PUID: '568'
-      TRANSFORMERS_CACHE: /mlcache
-      TZ: America/Los_Angeles
-      UID: '568'
-      UMASK: '002'
-      UMASK_SET: '002'
-      USER_ID: '568'
-    group_add:
-    - 44
-    - 107
-    - 568
-    healthcheck:
-      interval: 30s
-      retries: 5
-      start_interval: 2s
-      start_period: 15s
-      test:
-      - CMD
-      - python3
-      - healthcheck.py
-      timeout: 5s
-    image: ghcr.io/immich-app/immich-machine-learning:v2.7.5
-    networks:
-      ix-internal-immich-net: {}
-    platform: linux/amd64
-    privileged: false
-    restart: unless-stopped
-    security_opt:
-    - no-new-privileges=true
-    stdin_open: false
-    tty: false
-    user: 568:568
-    volumes:
-    - read_only: false
-      source: ml-cache
-      target: /mlcache
-      type: volume
-      volume:
-        nocopy: false
+  # machine-learning: MOVED to the Orange Pi RK3588 NPU
+  # (servers/orange-pi/apps/immich-ml, rknn backend). Immich core reaches it over
+  # the LAN via IMMICH_MACHINE_LEARNING_URL=http://192.168.1.214:3003 (set on the
+  # server service below). Removed here to free ~1-2GB VRAM on the GTX 1660S.
+  # Verified 2026-07-01: a smart search loaded ViT-B-32 as RKNN on the Pi NPU
+  # (3 cores, librknnrt 2.3.0, driver 0.9.8). To roll back, restore this service
+  # from git history and repoint the URL to http://machine-learning:32002.
   permissions:
     cap_add:
     - CHOWN
@@ -389,7 +323,7 @@ services:
       IMMICH_API_METRICS_PORT: '30363'
       IMMICH_LOG_LEVEL: log
       IMMICH_MACHINE_LEARNING_ENABLED: 'true'
-      IMMICH_MACHINE_LEARNING_URL: http://machine-learning:32002
+      IMMICH_MACHINE_LEARNING_URL: http://192.168.1.214:3003
       IMMICH_MICROSERVICES_METRICS_PORT: '30364'
       IMMICH_PORT: '30041'
       NODE_ENV: production

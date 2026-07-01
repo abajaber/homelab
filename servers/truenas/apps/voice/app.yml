@@ -1,3 +1,6 @@
 ---
 name: voice
-enabled: true
+# Relocated to servers/orange-pi/apps/voice (CPU stack on the RK3588 box). HA
+# Wyoming + Open WebUI TTS now point at 192.168.1.214. Disabled here so the
+# reconciler tears the TrueNAS stack down and frees ~1-1.5GB VRAM (GPU whisper).
+enabled: false

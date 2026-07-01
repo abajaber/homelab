@@ -1,0 +1,44 @@
+---
+# Secondary LLM on the RK3588 NPU (rkllama). The PRIMARY smart LLM stays on the
+# TrueNAS GPU (ollama/qwen3, ~35 tok/s); this is a low-power background/secondary
+# endpoint (~5-8 tok/s for a 4B). Single loaded model, requests to it serialize
+# (FIFO) — fine for background / Open WebUI secondary, not a shared primary.
+#
+# NPU access: the image bundles librkllmrt 1.3.0 (matches the host rknpu kernel
+# driver 0.9.8 — host needs no userspace libs) and serves BOTH the Ollama API
+# (/api/*) and OpenAI API (/v1/*) on :8080.
+#
+# `privileged: true` is deliberate: upstream ships privileged + /dev/dri, and on
+# the BSP 6.1 kernel the NPU can need DMA-heap nodes beyond renderD129 that fail
+# SILENTLY (rkllm init error, no crash) with an explicit `devices:` list. Tighten
+# later if desired:  devices: [/dev/dri/renderD129, /dev/dri/card1]
+#                    group_add: ["991", "44"]   # render, video
+#
+# MODEL BOOTSTRAP (one-time, after first deploy; model lazy-loads on first call):
+#   docker exec rkllama rkllama pull \
+#     dulimov/Qwen3-4B-Instruct-2507-rk3588-1.2.2/Qwen3-4B-Instruct-2507-rk3588-w8a8-opt-1-hybrid-ratio-1.0.rkllm
+#   Fallback if the 1.2.x model refuses to load on the 1.3.0 runtime:
+#     c01zaut/Qwen2.5-3B-Instruct-rk3588-1.1.1  (most battle-tested RK3588 conv.)
+#
+# Open WebUI: Admin -> Settings -> Connections -> OpenAI API ->
+#   http://192.168.1.214:8080/v1  (any non-empty API key). Keep it NON-default so
+#   the TrueNAS qwen3 stays primary. HA (optional): Ollama integration ->
+#   http://192.168.1.214:8080
+#
+# Model cache is a Docker NAMED volume (not a bind under the app dir) so the
+# GitOps rsync (--delete) can't wipe the multi-GB .rkllm on the next apply.
+services:
+  rkllama:
+    image: ghcr.io/notpunchnox/rkllama:main
+    container_name: rkllama
+    restart: unless-stopped
+    privileged: true
+    ports:
+      - "8080:8080"
+    environment:
+      - TZ=America/Toronto
+    volumes:
+      - rkllama-models:/opt/rkllama/models
+
+volumes:
+  rkllama-models:

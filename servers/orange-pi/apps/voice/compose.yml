@@ -1,0 +1,111 @@
+---
+# Voice stack consolidated on the Orange Pi 5 Plus (RK3588) — relocated off
+# TrueNAS. All CPU: the RK3588 NPU is reserved for vision (Immich / Frigate).
+# TTS/STT/wakeword either don't convert to RKNN or are already faster-than-
+# realtime on the A76 cores, so the NPU buys nothing here.
+#
+# Reached over the LAN (Pi = 192.168.1.214):
+#   Home Assistant (Wyoming): piper 10200 | whisper 10300 | openwakeword 10400
+#                             | wyoming-openai (Kokoro EN bridge) 10500
+#   Open WebUI (on TrueNAS):  Kokoro OpenAI TTS at http://192.168.1.214:8880/v1
+#
+# whisper is CPU faster-whisper `medium-int8` (multilingual, keeps Arabic
+# quality). This is the container that held the GTX 1660S on TrueNAS; relocating
+# it frees ~1-1.5GB VRAM. Utterances are short so CPU latency is acceptable —
+# benchmark the longest Arabic phrase after cutover; drop to small-int8 if slow.
+#
+# CUTOVER (manual, after this deploys and the endpoints answer):
+#   1. Home Assistant -> Settings -> Devices -> Wyoming: repoint each service
+#      from 127.0.0.1:<port> to 192.168.1.214:<port>.
+#   2. Open WebUI -> Admin -> Settings -> Audio -> TTS: set the OpenAI base URL
+#      to http://192.168.1.214:8880/v1.
+#   3. Only then disable the TrueNAS `voice` app (enabled: false) and re-apply
+#      truenas_sync to reclaim the whisper VRAM.
+services:
+  kokoro-fastapi:
+    image: ghcr.io/remsky/kokoro-fastapi-cpu:v0.5.0
+    container_name: kokoro-fastapi
+    restart: unless-stopped
+    environment:
+      - USE_GPU=false
+      - DOWNLOAD_MODEL=true
+      - PYTHONUNBUFFERED=1
+      - API_LOG_LEVEL=INFO
+      - TZ=America/Toronto
+    volumes:
+      - kokoro-models:/app/api/src/models
+      - kokoro-output:/app/output
+    ports:
+      - "8880:8880"          # LAN-exposed so Open WebUI (TrueNAS) can reach it
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8880/health').status==200 else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
+
+  wyoming-openai:
+    image: ghcr.io/roryeckel/wyoming_openai:0.5.0
+    container_name: wyoming-openai
+    restart: unless-stopped
+    depends_on:
+      - kokoro-fastapi
+    environment:
+      - WYOMING_URI=tcp://0.0.0.0:10500
+      - WYOMING_LOG_LEVEL=INFO
+      - WYOMING_LANGUAGES=en
+      - TTS_OPENAI_URL=http://kokoro-fastapi:8880/v1
+      - TTS_MODELS=kokoro
+      - TTS_BACKEND=KOKORO_FASTAPI
+      - TZ=America/Toronto
+    ports:
+      - "10500:10500"
+
+  wyoming-piper:
+    image: rhasspy/wyoming-piper:2.2.2
+    container_name: wyoming-piper
+    restart: unless-stopped
+    command: --voice ar_JO-kareem-medium
+    environment:
+      - TZ=America/Toronto
+    ports:
+      - "10200:10200"
+    volumes:
+      - piper-data:/data
+
+  wyoming-whisper:
+    # CPU faster-whisper (linuxserver, multi-arch arm64) — same config surface
+    # as the TrueNAS GPU container, minus the NVIDIA device grant.
+    image: lscr.io/linuxserver/faster-whisper:latest
+    container_name: wyoming-whisper
+    restart: unless-stopped
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Toronto
+      - WHISPER_MODEL=medium-int8
+      - WHISPER_BEAM=1
+      - WHISPER_LANG=auto
+    ports:
+      - "10300:10300"
+    volumes:
+      - whisper-config:/config
+
+  openwakeword:
+    image: rhasspy/wyoming-openwakeword:2.1.0
+    container_name: openwakeword
+    restart: unless-stopped
+    command: --custom-model-dir /custom
+    environment:
+      - TZ=America/Toronto
+    ports:
+      - "10400:10400"
+    volumes:
+      - openwakeword-custom:/custom
+
+volumes:
+  kokoro-models:
+  kokoro-output:
+  piper-data:
+  whisper-config:
+  openwakeword-custom:

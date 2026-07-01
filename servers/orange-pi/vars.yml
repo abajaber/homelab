@@ -1,0 +1,9 @@
+---
+# Per-host config for the Orange Pi 5 Plus (RK3588). Loaded explicitly by
+# playbooks via include_vars (see playbooks/orange_pi_sync.yml).
+#
+# Compose tree lives under the ssh user's home: abajaber is in the `docker`
+# group (docker works without sudo) but cannot write /opt and sudo needs a
+# password, so keeping stacks in $HOME avoids any privilege escalation.
+docker_vm_apps_dest_dir: /home/abajaber/stacks
+docker_vm_prune_volumes: false

@@ -24,13 +24,9 @@ services:
         limits:
           cpus: '2'
           memory: 4096M
-        reservations:
-          devices:
-          - capabilities:
-            - gpu
-            device_ids:
-            - GPU-53c1e32f-a0d4-3a75-aed3-036ea12cd90a
-            driver: nvidia
+        # No GPU reservation: Open WebUI does no local GPU inference — it's an
+        # HTTP client of Ollama over ai-net. Reserving the GPU here only pinned a
+        # pointless device handle on the 6GB GTX 1660S.
     environment:
       ENABLE_OPENAI_API_PASSTHROUGH: ${ENABLE_OPENAI_API_PASSTHROUGH}
       GID: '568'

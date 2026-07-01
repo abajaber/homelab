@@ -1,0 +1,7 @@
+---
+name: speaches
+# Superseded by sensevoice-stt (NPU, ~0.5s, English). This CPU faster-whisper
+# was the Arabic-capable STT but is slow (~11-20s) and pinned ~2.4GB RAM. Arabic
+# STT requirement dropped — disabled to reclaim RAM. Re-enable if Arabic STT is
+# needed again (then point Open WebUI STT back at 192.168.1.214:8000/v1).
+enabled: false

@@ -1,0 +1,42 @@
+---
+# Fast English STT on the RK3588 NPU: SenseVoice-Small (sherpa-onnx, RKNN)
+# behind an OpenAI /v1/audio/transcriptions endpoint for Open WebUI.
+#
+# WHY this exists alongside speaches: speaches (CPU faster-whisper) does Arabic
+# but is slow (~11-20s/dictation). SenseVoice on the NPU is ~0.6-1.3s but is
+# English/CJK only (NO Arabic). Runs on port 8100 so both coexist; point Open
+# WebUI at whichever you want. (RKNN whisper can't do fast Arabic — see the
+# rk3588-offload-plan memory.)
+#
+# The image BUILDS on the Pi (Dockerfile in this dir, rsynced by the reconciler):
+# bakes the RKNN runtime (librknnrt 2.2.0), the sherpa-onnx RKNN wheel, and the
+# 10-second SenseVoice model (~470MB) + Silero VAD. First build downloads ~510MB.
+#
+# privileged: matches rkllama — guaranteed NPU access on this BSP kernel (the NPU
+# render node + DMA-heap). Tighten later to:
+#   devices: [/dev/dri/renderD129:/dev/dri/renderD129]  group_add: ["991"]
+# NPU_CORE=-2 pins STT to core 2 so it doesn't fight rkllama on cores 0/1.
+#
+# Open WebUI: Admin -> Settings -> Audio -> STT: Engine=OpenAI,
+#   Base URL=http://192.168.1.214:8100/v1, API Key=any, Model=sensevoice-small
+services:
+  sensevoice-stt:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: sensevoice-stt:local
+    container_name: sensevoice-stt
+    restart: unless-stopped
+    privileged: true
+    ports:
+      - "192.168.1.214:8100:8000"   # LAN-only; endpoint is unauthenticated
+    environment:
+      NPU_CORE: "-2"                 # RK3588 core 2 (leave 0/1 for rkllama)
+      LANG_CODE: "en"
+      MAX_SECONDS: "10"             # MUST equal the model window baked in the image
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s

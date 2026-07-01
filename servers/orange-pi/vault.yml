@@ -1,0 +1,4 @@
+---
+# No per-host secrets yet (the voice stack has none). When a real value is
+# added, reference it from vars.yml as {{ vault_<name> }} and encrypt in place:
+#   ansible-vault encrypt servers/orange-pi/vault.yml

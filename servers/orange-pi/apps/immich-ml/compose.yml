@@ -1,0 +1,44 @@
+---
+# Immich machine-learning (CLIP smart-search + face detection) on the RK3588 NPU,
+# offloaded from the TrueNAS GTX 1660S. Immich core + DB stay on TrueNAS; it calls
+# this over the LAN via IMMICH_MACHINE_LEARNING_URL=http://192.168.1.214:3003.
+#
+# rknn NPU backend: image tag <ver>-rknn, PINNED to the TrueNAS immich version
+# (v2.7.5) — core/ML version skew causes instability, so bump both together.
+# The `security_opt: unconfined` pair is MANDATORY with the rknn image — without
+# it the NPU allocator is blocked and ML SILENTLY falls back to CPU (immich
+# #25057). MACHINE_LEARNING_RKNN_THREADS=3 = the 3 NPU cores.
+#
+# Model cache is a Docker named volume (re-downloadable). Pick the CLIP model in
+# the Immich admin UI (Machine Learning Settings -> Smart Search); for
+# multilingual (Arabic+EN) photo search use nllb-clip-base-siglip__v1 (has rk3588
+# rknn weights), then re-run the Smart Search job to reprocess the library.
+services:
+  immich-machine-learning:
+    image: ghcr.io/immich-app/immich-machine-learning:v2.7.5-rknn
+    container_name: immich-ml
+    restart: unless-stopped
+    security_opt:
+      - systempaths=unconfined
+      - apparmor=unconfined
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - "991"   # render — NPU render node access
+      - "44"    # video
+    environment:
+      - MACHINE_LEARNING_RKNN_THREADS=3
+      - TZ=America/Toronto
+    ports:
+      - "192.168.1.214:3003:3003"   # LAN-only; the TrueNAS immich core calls this
+    volumes:
+      - model-cache:/cache
+    healthcheck:
+      test: ["CMD", "python3", "healthcheck.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+volumes:
+  model-cache:

@@ -24,6 +24,10 @@
   vars:
     mode: apply
 
+- import_playbook: orange_pi_sync.yml
+  vars:
+    mode: apply
+
 - import_playbook: truenas_sync.yml
   vars:
     mode: apply
