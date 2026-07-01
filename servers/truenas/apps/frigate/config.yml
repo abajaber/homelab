@@ -54,6 +54,24 @@ model:
   path: /config/model_cache/yolov9-t-320.onnx
   labelmap_path: /labelmap/coco-80.txt
 
+# FACE RECOGNITION (0.17). Keys off a `person` detection, then runs a dedicated
+# face detector + a face-embedding model (auto-downloaded on first enable). Needs
+# AVX2 (this box has it). model_size:
+#   small = FaceNet on CPU, ZERO VRAM — chosen because ollama (primary LLM, ~3-5GB
+#           when loaded) shares this 6GB GPU; the `large` ArcFace GPU model adds a
+#           ~0.6-1.2GB CUDA context that can OOM when the LLM is co-resident with
+#           the detector's TensorRT engine.
+#   large = ArcFace on the GPU (more accurate) — only if you accept that VRAM
+#           contention with ollama (watch the frigate log for CUDA OOM).
+# Enroll known people in the Frigate UI (Faces page) after enabling.
+face_recognition:
+  enabled: true
+  # large = ArcFace on the GPU (better accuracy). Fits the 6GB card alongside the
+  # detector (~0.77GB) + ollama qwen3:4b (~2.7GB) — ~1GB CUDA context, ~1.5GB
+  # headroom. WOULD OOM if ollama is bumped to an 8B (~5GB) model — drop back to
+  # `small` (CPU, zero VRAM) if you do that.
+  model_size: large
+
 ffmpeg:
   # NVIDIA NVDEC hardware decode (the GPU acceleration). Only the low-res detect
   # substreams are decoded; record streams are stream-copied (no decode/encode).
