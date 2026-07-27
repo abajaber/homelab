@@ -92,7 +92,7 @@ services:
       - traefik.http.routers.sonarr-tv-api.priority=20
 
   radarr:
-    image: linuxserver/radarr:6.2.1
+    image: linuxserver/radarr:6.3.0
     container_name: radarr
     restart: unless-stopped
     environment:
@@ -131,7 +131,7 @@ services:
       - traefik.http.routers.radarr-api.priority=20
 
   bazarr:
-    image: linuxserver/bazarr:1.5.6
+    image: linuxserver/bazarr:1.6.0
     container_name: bazarr
     restart: unless-stopped
     environment:
@@ -170,7 +170,7 @@ services:
       - traefik.http.routers.bazarr-api.priority=20
 
   prowlarr:
-    image: linuxserver/prowlarr:2.4.0
+    image: linuxserver/prowlarr:2.5.2
     container_name: prowlarr
     restart: unless-stopped
     environment:
