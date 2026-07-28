@@ -2,18 +2,13 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:recommended", ":dependencyDashboard"],
   "timezone": "America/Toronto",
-  "schedule": ["before 6am on monday"],
   "vulnerabilityAlerts": {
     "enabled": true,
     "schedule": ["at any time"]
   },
-  "prHourlyLimit": 2,
-  "prConcurrentLimit": 5,
-  "docker-compose": {
-    "managerFilePatterns": [
-      "/servers/truenas/apps/.+/compose\\.ya?ml$/"
-    ]
-  },
+  "prHourlyLimit": 0,
+  "prConcurrentLimit": 12,
+  "platformAutomerge": true,
   "packageRules": [
     {
       "groupName": "linuxserver",
@@ -40,12 +35,11 @@
     },
     {
       "matchPackageNames": ["lscr.io/linuxserver/faster-whisper"],
-      "versioning": "regex:^gpu-v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)-ls(?<build>\\d+)$"
+      "versioning": "regex:^v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)-ls(?<build>\\d+)$"
     },
     {
-      "matchPackageNames": ["postgres", "alpine", "traefik", "valkey/valkey", "redis"],
-      "matchUpdateTypes": ["patch"],
-      "automerge": true
+      "matchPackageNames": ["netbirdio/netbird"],
+      "dependencyDashboardApproval": true
     },
     {
       "matchUpdateTypes": ["patch"],

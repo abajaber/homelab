@@ -74,9 +74,11 @@ services:
       - piper-data:/data
 
   wyoming-whisper:
-    # CPU faster-whisper (linuxserver, multi-arch arm64) — same config surface
-    # as the TrueNAS GPU container, minus the NVIDIA device grant.
-    image: lscr.io/linuxserver/faster-whisper:latest
+    # CPU faster-whisper (linuxserver, multi-arch arm64). The CPU stream uses
+    # `v<ver>-ls<build>` tags with its own build counter, distinct from the
+    # `gpu-v<ver>-ls<build>` stream — see the faster-whisper rule in
+    # renovate.json, which pins the versioning regex to the CPU shape.
+    image: lscr.io/linuxserver/faster-whisper:v3.5.0-ls153
     container_name: wyoming-whisper
     restart: unless-stopped
     environment:
