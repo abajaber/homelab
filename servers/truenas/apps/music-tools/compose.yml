@@ -144,7 +144,7 @@ services:
     # UI is unreachable externally and config stays env-driven (schedules below
     # take precedence over the UI). Do NOT configure via the wizard -- it writes
     # back to /opt/explo/.env and would drift this vault-managed file.
-    image: ghcr.io/lumepart/explo:v1.1.2
+    image: ghcr.io/lumepart/explo:v1.1.3
     container_name: explo
     restart: unless-stopped
     user: "568:568"
