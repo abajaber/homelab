@@ -11,7 +11,7 @@ networks:
 
 services:
   esphome:
-    image: ghcr.io/esphome/esphome:2026.6.4
+    image: ghcr.io/esphome/esphome:2026.7.2
     container_name: esphome
     restart: unless-stopped
     environment:
