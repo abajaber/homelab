@@ -1,7 +1,11 @@
 name: Renovate
 on:
   schedule:
-    - cron: '0 6 * * 1'
+    # Daily. Renovate's own `schedule` was removed from renovate.json — with a
+    # weekly run, prHourlyLimit capped PR creation at 2/week and the queue never
+    # drained. Noise is now controlled by automerge + limits, not by starving
+    # the bot of run windows.
+    - cron: '0 6 * * *'
   workflow_dispatch: {}
 permissions:
   contents: write
