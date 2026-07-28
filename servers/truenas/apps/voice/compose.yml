@@ -89,7 +89,7 @@ services:
       - ai-net
 
   wyoming-whisper:
-    image: lscr.io/linuxserver/faster-whisper:gpu-v3.3.1-ls50
+    image: lscr.io/linuxserver/faster-whisper:gpu-v3.5.0-ls56
     container_name: wyoming-whisper
     restart: unless-stopped
     deploy:
