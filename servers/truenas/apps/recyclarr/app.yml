@@ -1,0 +1,8 @@
+---
+name: recyclarr
+enabled: true
+# Syncs TRaSH-Guides custom formats + quality profiles into both Sonarr
+# instances and Radarr on a cron. The config lives inline in compose.yml as
+# a docker `config` (target /config/recyclarr.yml) so it is drift-tracked in
+# the fingerprint — /config already exists as a bind mount, so the parent-dir
+# problem that forced the authentik blueprints out-of-band does not apply.
