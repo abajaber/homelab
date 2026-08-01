@@ -1,0 +1,160 @@
+---
+# Declarative *arr instance settings — the config that lives in each app's
+# SQLite DB and is therefore invisible to the compose reconciler.
+#
+# Recyclarr owns custom formats, quality definitions and quality profiles.
+# THIS file owns everything else that was previously clicked in the UI:
+# tags, which indexers/clients each tag routes to, auto-tagging rules,
+# release profiles, and series-level enforcement.
+#
+# Apply with:
+#   set -a; eval "$(ansible-vault view servers/truenas/apps/arr/.env)"; set +a
+#   python scripts/arr_settings_sync.py                 # plan (default)
+#   python scripts/arr_settings_sync.py --apply
+#
+# Idempotent: every write is preceded by a read and a diff.
+
+# Workstation has no split-DNS for *.bajaber.ca; pin the Traefik host.
+dns_overrides:
+  sonarr.bajaber.ca: 192.168.1.138
+  sonarr-tv.bajaber.ca: 192.168.1.138
+  radarr.bajaber.ca: 192.168.1.138
+
+verify_tls: false
+
+instances:
+  # --------------------------------------------------------------------------
+  # Anime Sonarr.
+  # --------------------------------------------------------------------------
+  sonarr-anime:
+    base_url: https://sonarr.bajaber.ca
+    api_prefix: /api/v3
+    api_key_env: SONARR_ANIME_API_KEY
+
+    tags:
+      - vpn
+      - direct
+      - anime
+      - cour-relative-unsafe
+
+    # An indexer carrying a tag is only searched for series carrying the same
+    # tag. RSS sync ignores tags, which is why a mis-tagged fleet still looks
+    # healthy on the Activity page while every manual search hits one indexer.
+    indexer_tags:
+      Knaben (Prowlarr): [vpn]
+      Nyaa.si (Prowlarr): [vpn]
+      AnimeTosho (Prowlarr): [vpn]
+      TorrentDownload (Prowlarr): [vpn]
+      AnimeZ (Prowlarr): [direct]
+      LimeTorrents (Prowlarr): []
+
+    # Same rule for download clients — a series with no matching tag has no
+    # eligible client at all and can never grab.
+    download_client_tags:
+      qBittorrent-vpn: [vpn]
+      qBittorrent-direct: [direct]
+
+    auto_tagging:
+      # VPN by default, `direct` is opt-in. remove_tags_automatically gives
+      # mutual exclusion: tag a series `direct` and `vpn` is pulled off, so
+      # nothing ends up with both (two clients at equal priority would then
+      # be picked round-robin).
+      - name: vpn-default
+        remove_tags_automatically: true
+        tags: [vpn]
+        specifications:
+          - name: not-direct
+            implementation: TagSpecification
+            negate: true
+            required: true
+            tag_value: direct
+
+    release_profiles:
+      # Some anime groups number a cour relative to itself — Bleach's
+      # Thousand-Year Blood War ships as `S01E41` even though TVDB puts it at
+      # S17E41. Sonarr matches the release title (which carries the TYBW
+      # alias) but imports the *file* name, which usually drops the alias;
+      # bare `Bleach S01E41` then scene-maps onto the real season 1 and
+      # import dies with "Episode 2x21 was not found in the grabbed release".
+      # Unresolvable in general — so refuse those releases for affected series.
+      - name: reject cour-relative SxxExx
+        enabled: true
+        required: []
+        ignored:
+          - '/\bS0?1E\d{2}\b/i'
+        tags: [cour-relative-unsafe]
+
+    # Backfill for the OnSeriesAdd custom script (enforce_anime_type.sh),
+    # which only fires for newly added series. Anything added before that
+    # script existed keeps seriesType=standard, and standard-type searches
+    # never match anime release naming.
+    enforce_series_type: anime
+
+    series_tags:
+      Bleach: [cour-relative-unsafe]
+
+  # --------------------------------------------------------------------------
+  # Standard TV Sonarr. Same tag scheme; note the ids differ per instance, so
+  # everything here is by label.
+  # --------------------------------------------------------------------------
+  sonarr-tv:
+    base_url: https://sonarr-tv.bajaber.ca
+    api_prefix: /api/v3
+    api_key_env: SONARR_TV_API_KEY
+
+    tags: [vpn, direct]
+
+    indexer_tags:
+      Knaben (Prowlarr): [vpn]
+      Nyaa.si (Prowlarr): [vpn]
+      TorrentDownload (Prowlarr): [vpn]
+      LimeTorrents (Prowlarr): [vpn]
+      AnimeZ (Prowlarr): [direct]
+
+    download_client_tags:
+      qBittorrent-vpn: [vpn]
+      qBittorrent-direct: [direct]
+
+    auto_tagging:
+      - name: vpn-default
+        remove_tags_automatically: true
+        tags: [vpn]
+        specifications:
+          - name: not-direct
+            implementation: TagSpecification
+            negate: true
+            required: true
+            tag_value: direct
+
+  # --------------------------------------------------------------------------
+  # Radarr.
+  # --------------------------------------------------------------------------
+  radarr:
+    base_url: https://radarr.bajaber.ca
+    api_prefix: /api/v3
+    api_key_env: RADARR_API_KEY
+
+    tags: [vpn, direct]
+
+    indexer_tags:
+      Knaben (Prowlarr): [vpn]
+      Nyaa.si (Prowlarr): [vpn]
+      TorrentDownload (Prowlarr): [vpn]
+      AnimeTosho (Prowlarr): [vpn]
+      YTS (Prowlarr): [vpn]
+      AnimeZ (Prowlarr): [direct]
+
+    download_client_tags:
+      qBittorrent-vpn: [vpn]
+      qBittorrent-direct: [direct]
+
+    auto_tagging:
+      - name: vpn-default
+        remove_tags_automatically: true
+        tags: [vpn]
+        specifications:
+          - name: not-direct
+            implementation: TagSpecification
+            negate: true
+            required: true
+            tag_value: direct
