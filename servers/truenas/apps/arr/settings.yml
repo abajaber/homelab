@@ -69,19 +69,55 @@ instances:
             required: true
             tag_value: direct
 
+    # Delete release profiles not declared below. Needed so a rename actually
+    # converges instead of leaving the old profile behind, still filtering.
+    prune_release_profiles: true
+
     release_profiles:
-      # Some anime groups number a cour relative to itself — Bleach's
-      # Thousand-Year Blood War ships as `S01E41` even though TVDB puts it at
-      # S17E41. Sonarr matches the release title (which carries the TYBW
-      # alias) but imports the *file* name, which usually drops the alias;
-      # bare `Bleach S01E41` then scene-maps onto the real season 1 and
-      # import dies with "Episode 2x21 was not found in the grabbed release".
-      # Unresolvable in general — so refuse those releases for affected series.
-      - name: reject cour-relative SxxExx
+      # Bleach's Thousand-Year Blood War is numbered relative to its own cour
+      # (`S01E41`) while TVDB puts it at S17E41. Sonarr matches the release
+      # *title*, but on import it parses the *file* name — so what matters is
+      # whether the filename still carries something that disambiguates the
+      # series. Observed, all single .mkv files with no folder to fall back to:
+      #
+      #   ToonsHub  BLEACH.Thousand-Year.Blood.War.S01E42...-ToonsHub.mkv  -> S17E42  ok
+      #   AnoZu     Bleach.2004.S17E41...-AnoZu.mkv                        -> S17E41  ok
+      #   VARYG     BLEACH.S01E41.GOD.OF.THUNDER...-VARYG.mkv              -> 2x21    FAILS
+      #
+      # So the `S01Exx` form is NOT the discriminator — the alias-stripping is,
+      # and it is a per-group naming convention. VARYG drops it (two separate
+      # ep41 listings show its bare `Bleach S01E41 ...-VARYG` form; the alias
+      # in the third was added by the indexer, not the group). ToonsHub keeps
+      # it. Nothing in the release title distinguishes them, so the group name
+      # is the only signal available at grab time.
+      #
+      # Blocking the form instead of the group is what broke S17E42: it
+      # rejected all 21 ToonsHub releases (up to score 375), AnoZu had not
+      # published that episode, and nothing was left to grab.
+      #
+      # A negative-scored custom format would be the more idiomatic mechanism.
+      # It is not blocked by recyclarr — `reset_unmatched_scores` takes an
+      # `except:` / `except_patterns:` list precisely so hand-made formats
+      # survive a sync. It is rejected because custom format scores apply to a
+      # whole quality profile, so it would block VARYG for every anime series
+      # on profile 8. A release profile is tag-scoped, so it hits Bleach only.
+      #
+      # KNOWN FRAGILITY: only two groups clear `min_format_score: 100` for this
+      # show — ToonsHub (375) and VARYG (305). Blocking VARYG leaves ToonsHub
+      # as the sole source, so a week where ToonsHub does not publish looks
+      # exactly like the S17E42 incident. Judas/Lazier/ESPADAS/KiyoshiiSubs all
+      # parse to S17Exx correctly but score 0, so they are excluded by the
+      # floor, not by numbering. Dropping the floor to 0 for profile 8 would
+      # restore redundancy without admitting the LQ/VOSTFR/Raws groups, which
+      # sit at -10000 — but it is a quality-policy change, so it is not made
+      # here. `\bVARYG\b` rather than `-VARYG\b`: bracketed group naming
+      # (`[ToonsHub] ...`) is live on these indexers, so the leading hyphen
+      # cannot be assumed.
+      - name: reject alias-stripping groups
         enabled: true
         required: []
         ignored:
-          - '/\bS0?1E\d{2}\b/i'
+          - '/\bVARYG\b/i'
         tags: [cour-relative-unsafe]
 
     # Backfill for the OnSeriesAdd custom script (enforce_anime_type.sh),
