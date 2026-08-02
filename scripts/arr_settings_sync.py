@@ -87,6 +87,12 @@ class ArrClient:
             r.raise_for_status()
         return r.json() if r.text else None
 
+    def delete(self, path: str) -> None:
+        r = self.s.delete(self._url(path), timeout=60)
+        if not r.ok:
+            sys.stderr.write(f"    ! DELETE {path} -> {r.status_code} {r.text[:400]}\n")
+            r.raise_for_status()
+
 
 class Reconciler:
     """Collects a plan while walking the desired state; applies only if asked."""
@@ -208,8 +214,24 @@ class Reconciler:
 
     # -- release profiles ----------------------------------------------------
 
-    def sync_release_profiles(self, desired: list[dict], tag_ids: dict[str, int]) -> None:
+    def sync_release_profiles(
+        self, desired: list[dict], tag_ids: dict[str, int], prune: bool = False
+    ) -> None:
         existing = {r["name"]: r for r in self.c.get("/releaseprofile")}
+
+        # Without this the reconciler can never converge after a rename: the
+        # renamed profile is created and the old one lingers, still filtering
+        # releases. Opt-in per instance, because a blanket delete would also
+        # take out profiles added by hand.
+        if prune:
+            wanted = {p["name"] for p in desired}
+            for name, current in existing.items():
+                if name in wanted:
+                    continue
+                self.note(f"releaseprofile '{name}': delete (not declared)")
+                if self.apply:
+                    self.c.delete(f"/releaseprofile/{current['id']}")
+
         for prof in desired:
             body = {
                 "name": prof["name"],
@@ -282,8 +304,16 @@ def run_instance(name: str, spec: dict, verify: bool, apply: bool) -> int:
         r.sync_resource_tags("/downloadclient", spec["download_client_tags"], tag_ids)
     if spec.get("auto_tagging"):
         r.sync_auto_tagging(spec["auto_tagging"], tag_ids)
-    if spec.get("release_profiles"):
-        r.sync_release_profiles(spec["release_profiles"], tag_ids)
+    # Guard on either key, not on the desired list being non-empty: declaring
+    # `prune_release_profiles: true` with an empty `release_profiles` means
+    # "remove them all", and guarding on the list alone would silently no-op
+    # exactly the case where a wipe is most expected.
+    if spec.get("release_profiles") or spec.get("prune_release_profiles"):
+        r.sync_release_profiles(
+            spec.get("release_profiles", []),
+            tag_ids,
+            prune=bool(spec.get("prune_release_profiles")),
+        )
     r.sync_series(spec.get("enforce_series_type"), spec.get("series_tags", {}), tag_ids)
 
     if not r.changes:

@@ -62,18 +62,50 @@ they are worth recognising:
    copy was ~2 years behind, so `ToonsHub`/`AnoZu` scored 0.
 4. **`min_format_score: 100` plus stale formats** = nothing clears the floor,
    and the UI just shows an empty interactive search.
-5. **Cour-relative `SxxExx` numbering.** Some groups ship Bleach's Thousand-Year
-   Blood War as `S01E41` even though TVDB puts it at `S17E41`. Sonarr matches
-   the *release title* (which carries the TYBW alias) but imports the *file*
-   name, which usually drops it — bare `Bleach S01E41` then scene-maps onto the
-   real season 1 and import dies with `Episode 2x21 was not found in the grabbed
-   release`. Not resolvable in general, so the `reject cour-relative SxxExx`
-   release profile refuses them for tagged series.
+5. **Alias-stripping release groups.** Bleach's Thousand-Year Blood War is
+   numbered relative to its own cour (`S01E41`) while TVDB puts it at `S17E41`.
+   Sonarr matches the *release title* at grab time but parses the *file* name at
+   import. What decides success is whether the filename still carries something
+   that disambiguates the series:
+
+   ```
+   ToonsHub  BLEACH.Thousand-Year.Blood.War.S01E42...-ToonsHub.mkv   alias kept -> S17E42  ok
+   AnoZu     Bleach.2004.S17E41...-AnoZu.mkv                         TVDB numbering -> ok
+   VARYG     BLEACH.S01E41.GOD.OF.THUNDER...-VARYG.mkv               alias dropped -> 2x21  FAILS
+   ```
+
+   The `S01Exx` form is **not** the discriminator — ToonsHub uses it and imports
+   fine. The alias-stripping is, and it is a per-group naming convention, so the
+   group name is the only signal available at grab time. Hence the
+   `reject alias-stripping groups` release profile, tag-scoped to Bleach.
+
+   It really is unresolvable by configuration: scene slot `S01E41` is already
+   bound to `S17E41`'s neighbour by XEM —
+
+   ```
+   id=480  S02E21  sceneSeason=1   sceneEpisode=41   <- slot already taken
+   id=846  S17E41  sceneSeason=17  sceneEpisode=41
+   ```
+
+   — so no alternate title or scene mapping can make bare `Bleach S01E41` resolve
+   to S17E41 without stealing the slot from S02E21. Forcing a per-torrent folder
+   in qBittorrent does not help either: the folder is named after the *torrent*
+   name, which for a single-file torrent is the filename, not the indexer's
+   listing title.
 
 Diagnosing #5: `GET /api/v3/parse?title=<release>` returns the episodes Sonarr
-would map a title to. Compare that against the queue item's `outputPath`, which
-is what import actually parses — they differ whenever the torrent's inner
-filename is less specific than its release title.
+would map a title to. Compare that against the history entry's `droppedPath`,
+which is what import actually parses — they differ whenever the torrent's inner
+filename is less specific than its indexer listing title.
+
+**Known fragility.** Only two groups clear `min_format_score: 100` for Bleach:
+ToonsHub (375) and VARYG (305). Blocking VARYG leaves ToonsHub as the sole
+source, so a week where ToonsHub does not publish looks exactly like the S17E42
+incident — nothing grabbable, no alert. Judas, Lazier, ESPADAS and KiyoshiiSubs
+all parse to `S17Exx` correctly but score 0, so the floor excludes them, not the
+numbering. Dropping the floor to 0 on profile 8 would restore redundancy without
+admitting the LQ/VOSTFR/Raws groups (they sit at -10000), but that is a
+quality-policy decision, so it has not been made.
 
 ## Secrets
 
