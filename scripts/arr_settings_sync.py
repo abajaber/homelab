@@ -262,12 +262,39 @@ class Reconciler:
     # -- series-level ---------------------------------------------------------
 
     def sync_series(
-        self, series_type: str | None, series_tags: dict[str, list[str]], tag_ids: dict[str, int]
+        self,
+        series_type: str | None,
+        series_tags: dict[str, list[str]],
+        tag_ids: dict[str, int],
+        series_profiles: dict[str, str] | None = None,
+        default_profile: str | None = None,
     ) -> None:
-        if not series_type and not series_tags:
+        series_profiles = series_profiles or {}
+        if not series_type and not series_tags and not series_profiles and not default_profile:
             return
+
+        # Profiles are named here and resolved to ids per instance, because the
+        # same profile has different ids on each Sonarr.
+        profile_ids: dict[str, int] = {}
+        if series_profiles or default_profile:
+            profile_ids = {p["name"]: p["id"] for p in self.c.get("/qualityprofile")}
+            for name in {*series_profiles.values(), *( [default_profile] if default_profile else [] )}:
+                if name not in profile_ids:
+                    sys.stderr.write(f"    ! no quality profile named '{name}'\n")
+
         for s in self.c.get("/series"):
             dirty = False
+            want_profile = series_profiles.get(s["title"], default_profile)
+            if want_profile and want_profile in profile_ids:
+                want_id = profile_ids[want_profile]
+                if s.get("qualityProfileId") != want_id:
+                    was = next(
+                        (n for n, i in profile_ids.items() if i == s.get("qualityProfileId")),
+                        s.get("qualityProfileId"),
+                    )
+                    self.note(f"series '{s['title']}': profile '{was}' -> '{want_profile}'")
+                    s["qualityProfileId"] = want_id
+                    dirty = True
             if series_type and s.get("seriesType") != series_type:
                 self.note(f"series '{s['title']}': seriesType {s.get('seriesType')} -> {series_type}")
                 s["seriesType"] = series_type
@@ -314,7 +341,13 @@ def run_instance(name: str, spec: dict, verify: bool, apply: bool) -> int:
             tag_ids,
             prune=bool(spec.get("prune_release_profiles")),
         )
-    r.sync_series(spec.get("enforce_series_type"), spec.get("series_tags", {}), tag_ids)
+    r.sync_series(
+        spec.get("enforce_series_type"),
+        spec.get("series_tags", {}),
+        tag_ids,
+        spec.get("series_profiles", {}),
+        spec.get("default_quality_profile"),
+    )
 
     if not r.changes:
         print("  = in sync")

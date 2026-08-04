@@ -81,6 +81,19 @@ instances:
     # never match anime release naming.
     enforce_series_type: anime
 
+    # Every series lands on a recyclarr-managed profile. Without this a series
+    # added through the UI keeps Sonarr's stock `Any` — upgradeAllowed=false,
+    # cutoff SDTV, every custom format scored 0 — so it accepts an SDTV raw and
+    # never upgrades. SAKAMOTO DAYS sat there unnoticed.
+    #
+    # Profiles are named, not numbered: the ids differ per instance.
+    # Quote both sides — several series titles contain a colon.
+    default_quality_profile: "Remux-1080p - Anime"
+    series_profiles:
+      # Dual-audio floor (min_format_score 2000) — opt in per series.
+      "The Eminence in Shadow": "Remux-1080p - Anime - Dual Audio"
+      "Frieren: Beyond Journey's End": "Remux-1080p - Anime - Dual Audio"
+
   # --------------------------------------------------------------------------
   # Standard TV Sonarr. Same tag scheme; note the ids differ per instance, so
   # everything here is by label.
@@ -113,6 +126,12 @@ instances:
             negate: true
             required: true
             tag_value: direct
+
+    # `UHD Bluray + WEB` (the profile Fallout was on) is a renamed stock Sonarr
+    # profile that recyclarr does not manage, carrying a stale partial TRaSH
+    # score set — Upscaled, Bad Dual Groups and BR-DISK (BTN) all at 0, so none
+    # of them were being blocked. WEB-1080p is the recyclarr-managed one.
+    default_quality_profile: "WEB-1080p"
 
   # --------------------------------------------------------------------------
   # Radarr.
