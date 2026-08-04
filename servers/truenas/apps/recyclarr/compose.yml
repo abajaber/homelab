@@ -47,6 +47,38 @@ configs:
                 - name: Remux-1080p - Anime - Dual Audio
                   score: 2000
 
+            # Blocks English-dub-only releases. The guide's own `Dubs Only` is
+            # already at -10000 but every one of its specifications matches on
+            # release TITLE and needs the literal token "dub"/"dubbed":
+            #
+            #   ^(?!.*(Dual|Multi)[-_. ]?Audio).*((?<!multi-)\b(dub(bed)?)\b|(funi|eng(lish)?)_?dub)
+            #
+            # ToonsHub labels theirs "English Audio" instead, so S17E30 of
+            # Bleach sailed through at 375 and imported with `audioLanguages:
+            # eng` and no Japanese track — beating the dual-audio release of
+            # the same episode at 305.
+            #
+            # Sonarr had already parsed that release as `languages: [English]`,
+            # so this CF (a single negated LanguageSpecification on "Original")
+            # catches what the title regex cannot. It is opt-in — TRaSH ships
+            # it in the `[Optional] Language Profiles` group, not in the anime
+            # profile — hence listing it here, which also marks it "matched" so
+            # `reset_unmatched_scores` leaves it alone.
+            #
+            # Checked against all 111 live releases for S17E30: only 6 parse as
+            # English-only. The non-dub ones (English-Sub / Eng-Subs, i.e.
+            # Japanese audio) already score 0 or -10000, below the profile's
+            # min_format_score of 100, so nothing grabbable is lost.
+            #
+            # Not applied to the Dual Audio profile: that one needs Anime Dual
+            # Audio (+2000) to clear its floor, which a dub-only release never
+            # carries.
+            - trash_ids:
+                - ae575f95ab639ba5d15f663bf019e3e8 # Language: Not Original
+              assign_scores_to:
+                - name: Remux-1080p - Anime
+                  score: -10000
+
         # ----------------------------------------------------------------
         # Standard TV instance (`sonarr-tv`).
         # ----------------------------------------------------------------
