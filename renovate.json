@@ -42,7 +42,7 @@
       "dependencyDashboardApproval": true
     },
     {
-      "_comment": "Held at false while the backlog drains by hand. Flip back to true (and enable allow_auto_merge on the repo) once the queue is short enough to trust unattended patch merges — note that merged-to-main ships on the next truenas_sync apply of ANY app, since the reconciler has no per-app filter.",
+      "description": "Held at false while the backlog drains by hand. Flip back to true (and enable allow_auto_merge on the repo) once the queue is short enough to trust unattended patch merges — note that merged-to-main ships on the next truenas_sync apply of ANY app, since the reconciler has no per-app filter.",
       "matchUpdateTypes": ["patch"],
       "automerge": false
     },
