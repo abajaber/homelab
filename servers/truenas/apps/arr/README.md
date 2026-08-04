@@ -75,9 +75,22 @@ they are worth recognising:
    ```
 
    The `S01Exx` form is **not** the discriminator — ToonsHub uses it and imports
-   fine. The alias-stripping is, and it is a per-group naming convention, so the
-   group name is the only signal available at grab time. Hence the
-   `reject alias-stripping groups` release profile, tag-scoped to Bleach.
+   fine. The alias-stripping is, and nothing in the release title reveals it.
+
+   **No rule guards this today, deliberately.** A release profile blocking
+   VARYG was tried and reverted. TRaSH rates VARYG a good group (`Anime Web
+   Tier 04`, +300) and it is right — the encodes are fine, the collision is
+   specific to this one series. Blocking it also left ToonsHub as the sole
+   source above `min_format_score`, and later evidence undercut the premise
+   outright: VARYG's S17E27 releases on AnimeTosho *do* carry the alias
+   (`BLEACH.Thousand.Year.Blood.War.S01E27...-VARYG.mkv`), so the stripping is
+   per-release, not a group convention. One observed failure was not a rule.
+
+   When it does recur the symptom is a queue item stuck at `importPending`
+   with `Episode 2x21 was not found in the grabbed release`. It does not
+   auto-fail, so Sonarr will not re-search past it — clear it with
+   `DELETE /api/v3/queue/<id>?removeFromClient=true&blocklist=true`, which
+   blocklists that release and triggers a fresh search.
 
    It really is unresolvable by configuration: scene slot `S01E41` is already
    bound to `S17E41`'s neighbour by XEM —
@@ -98,14 +111,40 @@ would map a title to. Compare that against the history entry's `droppedPath`,
 which is what import actually parses — they differ whenever the torrent's inner
 filename is less specific than its indexer listing title.
 
-**Known fragility.** Only two groups clear `min_format_score: 100` for Bleach:
-ToonsHub (375) and VARYG (305). Blocking VARYG leaves ToonsHub as the sole
-source, so a week where ToonsHub does not publish looks exactly like the S17E42
-incident — nothing grabbable, no alert. Judas, Lazier, ESPADAS and KiyoshiiSubs
-all parse to `S17Exx` correctly but score 0, so the floor excludes them, not the
-numbering. Dropping the floor to 0 on profile 8 would restore redundancy without
+**Thin source pool.** Only two groups clear `min_format_score: 100` for Bleach —
+ToonsHub (375) and VARYG (305). Judas, Lazier, ESPADAS and KiyoshiiSubs all
+parse to `S17Exx` correctly but score 0, so the floor excludes them, not the
+numbering. Dropping the floor to 0 on profile 8 would widen the pool without
 admitting the LQ/VOSTFR/Raws groups (they sit at -10000), but that is a
-quality-policy decision, so it has not been made.
+quality-policy decision, so it has not been made. This is why blocking either of
+the two viable groups is a bad trade.
+
+6. **Dub-only releases that do not say "dub".** `Dubs Only` is scored -10000 but
+   every one of its specifications matches on release *title*, and the primary
+   one needs the literal token `dub`/`dubbed`. ToonsHub labels theirs
+   `English Audio`, so S17E30 imported with `audioLanguages: eng` and no
+   Japanese track, beating the dual-audio release 375 to 305.
+
+   Sonarr had already parsed it as `languages: [English]`, so the fix is
+   TRaSH's `Language: Not Original` (`ae575f95…`) — one negated
+   `LanguageSpecification` on "Original" — scored -10000 on
+   `Remux-1080p - Anime` in the recyclarr config. It is opt-in upstream
+   (`[Optional] Language Profiles`), and listing it explicitly also marks it
+   matched so `reset_unmatched_scores` leaves it alone.
+
+   It self-heals: an offending file rescores below the floor, goes cutoff
+   unmet, and the next search replaces it. The Dual Audio profile needs no
+   equivalent — it requires `Anime Dual Audio` (+2000) to clear its floor,
+   which a dub-only release never carries.
+
+**Reading a search result list.** Interactive search shows everything the
+indexers returned, including non-matches, each with its rejection. For S17E30
+that was 111 results of which **58 were not that episode** — 34
+`Episode wasn't requested`, 24 `Unknown Series`. Anime searches query by title
+plus absolute number (`Bleach 396`), and indexers text-match loosely, so 29-
+episode Bluray batches from the 2004 run come back scoring 700. High score does
+not mean eligible; Sonarr checks the episodes a release actually contains
+separately, and automatic search drops all of them silently.
 
 ## Secrets
 
