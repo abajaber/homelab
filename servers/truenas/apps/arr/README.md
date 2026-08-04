@@ -10,7 +10,7 @@ Two things bring that DB state under version control:
 | Owns | Source of truth | Runs |
 |---|---|---|
 | custom formats, quality definitions, quality profiles | `servers/truenas/apps/recyclarr/compose.yml` (inline config) | `recyclarr` container, daily 04:00 |
-| tags, indexer/client tag routing, auto-tagging, release profiles, series type | `settings.yml` (this folder) | `scripts/arr_settings_sync.py`, on demand |
+| tags, indexer/client tag routing, auto-tagging, release profiles, series type, which profile each series is on | `settings.yml` (this folder) | `scripts/arr_settings_sync.py`, on demand |
 
 Anything not in one of those two is still click-ops and will rot. It has
 before.
@@ -27,6 +27,30 @@ python scripts/arr_settings_sync.py --instance radarr  # scope to one
 Idempotent — every write is preceded by a read and a diff, and a clean run
 prints `= in sync`. Library state (series, movies, queue, history, blocklist,
 files) is never touched.
+
+## Quality profile assignment
+
+Recyclarr manages the *contents* of a quality profile but has no idea which
+series are pointed at it, so a series added through the UI silently keeps
+Sonarr's stock `Any` — `upgradeAllowed=false`, cutoff `SDTV`, every custom
+format scored 0. It will accept an SDTV raw and never upgrade. `SAKAMOTO DAYS`
+sat like that unnoticed; `Fallout` sat on a renamed stock profile that recyclarr
+never touched, so its `Upscaled` / `Bad Dual Groups` / `BR-DISK (BTN)` blocks
+were all at 0.
+
+`default_quality_profile` closes that: every series is moved onto it unless
+`series_profiles` overrides by name. Profiles are named rather than numbered
+because the ids differ per instance. Quote both sides — several series titles
+contain a colon.
+
+```yaml
+default_quality_profile: "Remux-1080p - Anime"
+series_profiles:
+  "The Eminence in Shadow": "Remux-1080p - Anime - Dual Audio"
+```
+
+This makes new series safe by default: whatever the UI picks on add, the next
+`--apply` puts it on a managed profile.
 
 ## The tag routing model
 

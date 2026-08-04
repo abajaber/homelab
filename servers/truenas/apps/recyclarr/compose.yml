@@ -95,6 +95,22 @@ configs:
               reset_unmatched_scores:
                 enabled: true
 
+          custom_formats:
+            # Declared to pin what was already live but undeclared: this score
+            # was found set on the profile although the guide's web-1080p does
+            # not include any Language CF and `reset_unmatched_scores` had
+            # zeroed its neighbours. Kept at the guide's own default rather
+            # than changed, so live behaviour is unaffected — the point is that
+            # it is now deterministic instead of drift nobody could explain.
+            #
+            # Harmless for the series on this instance: "Not Original" means
+            # not the series' original language, and Fallout's is English.
+            - trash_ids:
+                - ae575f95ab639ba5d15f663bf019e3e8 # Language: Not Original
+              assign_scores_to:
+                - name: WEB-1080p
+                  score: -10000
+
           custom_format_groups:
             add:
               - trash_id: 158188097a58d7687dee647e04af0da3 # [Optional] Golden Rule HD
