@@ -85,6 +85,7 @@ Then edit `servers/hosts.yml` so `ansible_host` points at your real machines, an
 | [docs/secrets.md](docs/secrets.md) | editing, rotating, or adding any secret — per-app `.env` or per-host `vault.yml` |
 | [docs/forward-auth.md](docs/forward-auth.md) | adding an Authentik-gated app whose API still needs to be reachable for tooling (arr stack, qBittorrent, …) |
 | [docs/open-terminal.md](docs/open-terminal.md) | poking at live container state on TrueNAS (logs, generated configs, sqlite DBs) without SSH |
+| [docs/arr-hardlink-migration.md](docs/arr-hardlink-migration.md) | pending runbook — `media` and `torrents` are separate ZFS datasets, so every Sonarr/Radarr import is a full copy instead of a hardlink |
 | [CLAUDE.md](CLAUDE.md) | the deep reference — JSON-RPC method shapes, reconciler internals, Ansible quirks, future-extension notes |
 
 ## Public-repo safety
