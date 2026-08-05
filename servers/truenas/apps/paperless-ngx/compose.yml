@@ -214,7 +214,7 @@ services:
       - traefik.http.routers.paperless-ai.middlewares=authentik@docker
 
   paperless-gpt:
-    image: icereed/paperless-gpt:v0.25.1
+    image: icereed/paperless-gpt:v0.27.0
     container_name: paperless-gpt
     restart: unless-stopped
     depends_on:
