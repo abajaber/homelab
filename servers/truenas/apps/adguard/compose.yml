@@ -26,7 +26,7 @@
 # rather than 0.0.0.0 to dodge any stub-resolver / 100.100.100.100 overlap.
 services:
   adguardhome:
-    image: adguard/adguardhome:v0.107.77
+    image: adguard/adguardhome:v0.107.79
     container_name: adguardhome
     restart: unless-stopped
     network_mode: host
