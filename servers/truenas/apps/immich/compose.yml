@@ -271,7 +271,7 @@ services:
       - ${IMMICH_REDIS_PASSWORD}
       - ping
       timeout: 5s
-    image: valkey/valkey:9.1.0
+    image: valkey/valkey:9.1.2
     networks:
       ix-internal-immich-net: {}
     platform: linux/amd64
