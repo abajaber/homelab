@@ -9,7 +9,7 @@ services:
     # Pin to the same tag the TrueNAS community catalog uses (the `:slim`
     # rolling tag silently drops `run` subcommand support); see
     # https://github.com/truenas/apps/tree/master/ix-dev/community/open-terminal
-    image: ghcr.io/open-webui/open-terminal:0.11.34
+    image: ghcr.io/open-webui/open-terminal:0.14.0
     container_name: open-terminal
     restart: unless-stopped
     user: "568:568"
