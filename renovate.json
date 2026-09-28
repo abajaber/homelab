@@ -19,6 +19,11 @@
       ]
     },
     {
+      "description": "linuxserver still publishes 2022-era 8.x tags (Lidarr 0.8.x with the leading 0 dropped). Renovate reads them as newer than the current 3.x builds, so block them.",
+      "matchPackageNames": ["linuxserver/lidarr", "lscr.io/linuxserver/lidarr"],
+      "allowedVersions": "<8"
+    },
+    {
       "matchPackageNames": [
         "ghcr.io/immich-app/immich-server",
         "ghcr.io/immich-app/immich-machine-learning"
