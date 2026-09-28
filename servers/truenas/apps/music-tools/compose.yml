@@ -161,7 +161,7 @@ services:
       - DOWNLOAD_SERVICES=slskd
       - SLSKD_URL=http://slskd:5030
       - SLSKD_API_KEY=${SLSKD_API_KEY}
-      - MIGRATE_DOWNLOADS=true
+      - SLSKD_MIGRATE_DOWNLOADS=true
       - EXTENSIONS=flac,mp3
       - WEEKLY_EXPLORATION_SCHEDULE=15 00 * * 2
       - WEEKLY_JAMS_SCHEDULE=15 00 * * 1

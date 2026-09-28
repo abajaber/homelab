@@ -32,6 +32,8 @@ services:
       - ND_DATAFOLDER=/data
       - ND_SCANSCHEDULE=@every 1h
       - ND_SESSIONTIMEOUT=24h
+      # 0.63.0 turned sharing on by default; keep public share links off.
+      - ND_ENABLESHARING=false
       - ND_LISTENBRAINZ_ENABLED=true
       - ND_LASTFM_APIKEY=${LASTFM_APIKEY}
       - ND_LASTFM_SECRET=${LASTFM_SECRET}
