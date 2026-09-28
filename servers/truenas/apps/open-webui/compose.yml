@@ -134,9 +134,12 @@ services:
       src.backup(dst)
       dst.close(); src.close()
       os.rename("/new/webui.db.tmp", "/new/webui.db")
+      # Keep the source owners: open-webui runs as root with every
+      # capability dropped, so it can only write files that root owns.
       for root, dirs, files in os.walk("/new"):
           for n in [root, *(os.path.join(root, f) for f in dirs + files)]:
-              os.lchown(n, 568, 568)
+              s = os.lstat("/old" + n[len("/new"):])
+              os.lchown(n, s.st_uid, s.st_gid)
       print("migrated")
     volumes:
     - /mnt/.ix-apps/app_mounts/open-webui/data:/old
