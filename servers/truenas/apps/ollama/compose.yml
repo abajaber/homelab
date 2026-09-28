@@ -18,7 +18,7 @@ networks:
 
 services:
   ollama:
-    image: ollama/ollama:0.31.1
+    image: ollama/ollama:0.34.4
     container_name: ollama
     restart: unless-stopped
     deploy:
@@ -58,7 +58,7 @@ services:
   # to completion and exits. Idempotent (pull is a no-op if model present).
   # Big models (gemma3:4b ~3GB) take several minutes on first run.
   ollama-bootstrap:
-    image: curlimages/curl:8.21.0
+    image: curlimages/curl:8.22.0
     restart: "no"
     depends_on:
       ollama:

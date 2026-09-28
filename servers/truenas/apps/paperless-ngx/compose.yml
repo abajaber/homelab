@@ -63,7 +63,7 @@ services:
       retries: 5
 
   redis:
-    image: valkey/valkey:9.1.0
+    image: valkey/valkey:9.1.2
     container_name: paperless-redis
     restart: unless-stopped
     command:
@@ -82,7 +82,7 @@ services:
       retries: 5
 
   gotenberg:
-    image: gotenberg/gotenberg:8.34
+    image: gotenberg/gotenberg:8.37
     container_name: paperless-gotenberg
     restart: unless-stopped
     command:
@@ -214,7 +214,7 @@ services:
       - traefik.http.routers.paperless-ai.middlewares=authentik@docker
 
   paperless-gpt:
-    image: icereed/paperless-gpt:v0.25.1
+    image: icereed/paperless-gpt:v0.28.0
     container_name: paperless-gpt
     restart: unless-stopped
     depends_on:
@@ -238,6 +238,10 @@ services:
       - MANUAL_TAG=paperless-gpt-manual
       - PDF_OCR_TAGGING=true
       - PDF_OCR_COMPLETE_TAG=paperless-gpt-ocr-complete
+      # v0.26+ drops root and chowns its volumes to PUID:PGID (default 10001).
+      # Pin to apps:apps so the prompts dataset keeps the reconciler owner.
+      - PUID=568
+      - PGID=568
     volumes:
       - /mnt/redsea/apps/paperless-ngx/gpt-prompts:/app/prompts
     networks:

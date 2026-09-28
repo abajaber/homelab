@@ -8,12 +8,14 @@ networks:
 
 services:
   termix:
-    image: ghcr.io/lukegus/termix:release-2.5.0
+    image: ghcr.io/lukegus/termix:release-2.8.0
     container_name: termix
     restart: unless-stopped
     environment:
       PORT: "8080"
       TZ: America/Toronto
+      # 2.6.0 turned telemetry on by default.
+      ENABLE_TELEMETRY: "false"
     volumes:
       - /mnt/redsea/apps/termix/data:/app/data
     depends_on:

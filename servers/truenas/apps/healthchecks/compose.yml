@@ -44,7 +44,7 @@ networks:
 
 services:
   healthchecks:
-    image: healthchecks/healthchecks:v4.2
+    image: healthchecks/healthchecks:v4.4
     container_name: healthchecks
     restart: unless-stopped
     # Run as apps:apps (568) to match the auto-stamped dataset perms on /data.

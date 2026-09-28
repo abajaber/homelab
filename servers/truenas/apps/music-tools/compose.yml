@@ -144,7 +144,7 @@ services:
     # UI is unreachable externally and config stays env-driven (schedules below
     # take precedence over the UI). Do NOT configure via the wizard -- it writes
     # back to /opt/explo/.env and would drift this vault-managed file.
-    image: ghcr.io/lumepart/explo:v1.1.2
+    image: ghcr.io/lumepart/explo:v1.2.0
     container_name: explo
     restart: unless-stopped
     user: "568:568"
@@ -161,7 +161,7 @@ services:
       - DOWNLOAD_SERVICES=slskd
       - SLSKD_URL=http://slskd:5030
       - SLSKD_API_KEY=${SLSKD_API_KEY}
-      - MIGRATE_DOWNLOADS=true
+      - SLSKD_MIGRATE_DOWNLOADS=true
       - EXTENSIONS=flac,mp3
       - WEEKLY_EXPLORATION_SCHEDULE=15 00 * * 2
       - WEEKLY_JAMS_SCHEDULE=15 00 * * 1
