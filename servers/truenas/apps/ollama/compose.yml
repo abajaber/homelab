@@ -64,7 +64,7 @@ services:
       ollama:
         condition: service_healthy
     environment:
-      - MODELS=qwen3.5:4b qwen3:4b
+      - MODELS=qwen3.5:4b qwen3:4b qwen3:4b-instruct-2507-q4_K_M
     entrypoint:
       - sh
       - -c

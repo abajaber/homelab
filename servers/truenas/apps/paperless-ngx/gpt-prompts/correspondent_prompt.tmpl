@@ -1,0 +1,25 @@
+Identify the correspondent of this document: the organization or person who SENT it.
+
+Rules:
+- The sender usually appears in the letterhead, the logo text, the signature, or the footer.
+- The names in the address block are the recipients. They are never the correspondent.
+- Keep the name in the language the document prints it in. "Énergie Nordique" stays "Énergie Nordique", never "Nordic Energy". Ignore the "English translation" section when reading names.
+- Use the short common name: "RAMQ" not "Régie de l'assurance maladie du Québec", "Desjardins" not "Caisse Desjardins de Laval Inc.", "Amazon" not "Amazon.com.ca ULC".
+- If a name in <existing_correspondents> refers to the same sender, reply with that exact name.
+- Never reply with a name from <blacklisted_correspondents>.
+- If you cannot tell who sent it, reply "Unknown".
+
+Reply with the correspondent name only. No explanation.
+
+<existing_correspondents>
+{{.AvailableCorrespondents | join ", "}}
+</existing_correspondents>
+
+<blacklisted_correspondents>
+{{.BlackList | join ", "}}
+</blacklisted_correspondents>
+
+<title>{{.Title}}</title>
+<content>
+{{.Content}}
+</content>

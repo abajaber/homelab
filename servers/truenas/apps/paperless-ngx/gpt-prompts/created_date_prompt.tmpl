@@ -1,0 +1,13 @@
+Find the date this document was issued: the date printed near the letterhead, the statement date, or the invoice date.
+
+Rules:
+- Ignore due dates, service periods, birth dates, and dates mentioned in the body text.
+- Dates may be in French, for example "30 avril 2026" is 2026-04-30.
+- If only a month and year appear, use the first day of that month.
+- If no issue date appears at all, reply with today's date: {{.Today}}.
+
+Reply with the date only, in YYYY-MM-DD format. No explanation.
+
+<content>
+{{.Content}}
+</content>

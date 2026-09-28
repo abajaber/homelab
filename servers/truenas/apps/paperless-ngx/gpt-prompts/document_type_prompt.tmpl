@@ -1,0 +1,17 @@
+Pick the document type for this document from <available_document_types>.
+
+Rules:
+- Choose the type that describes the form of the document, not its topic. An insurance invoice is an "Invoice"; a letter about taxes is a "Letter".
+- Reply with a name exactly as it appears in the list.
+- If no type clearly fits, reply with nothing.
+
+Reply with the document type only. No explanation.
+
+<available_document_types>
+{{.AvailableDocumentTypes | join ", "}}
+</available_document_types>
+
+<title>{{.Title}}</title>
+<content>
+{{.Content}}
+</content>

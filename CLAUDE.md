@@ -159,6 +159,12 @@ Each gated app declares **two** Traefik routers: the UI router (`authentik@docke
 
 See `servers/truenas/apps/arr/README.md` and `servers/truenas/apps/recyclarr/README.md` for the worked detail.
 
+### Paperless AI pipeline (TrueNAS)
+
+`servers/truenas/apps/paperless-ngx/` follows the [Techno Tim split](https://technotim.com/posts/paperless-ngx-local-ai/). A paperless workflow ("AI pipeline", on document added) tags each new document `paperless-gpt-ocr-auto` + `paperless-gpt-auto`. **paperless-gpt** then re-reads the scan with `qwen3.5:4b` vision (OCR, plus an appended `## English translation` section for non-English pages) and sets title, correspondent, document type, and created date with `qwen3:4b-instruct-2507`. **paperless-ai** only processes documents tagged `paperless-gpt-ocr-complete`, adds topic tags (`ACTIVATE_TITLE/CORRESPONDENTS/DOCUMENT_TYPE=no`), and serves RAG chat. Its tagging prompt is `SYSTEM_PROMPT` in compose; compose env beats its `/app/data/.env` because dotenv never overrides.
+
+The workflow, trigger tags, paperless-gpt prompts (`gpt-prompts/*.tmpl`), and paperless-ai's one-time setup are app state, reconciled by `python scripts/paperless_ai_sync.py [--apply]` after loading the paperless vault `.env`. Traps: `qwen3.5` thinks by default and `OLLAMA_THINK` covers metadata only, so the OCR prompt's first line is `/no_think` (without it the page fills the context with thinking and returns empty text). Keep models under ~3.5 GB; the GPU is 6 GB and shared with Frigate. `/api/generate-suggestions` needs full document objects from `/api/documents/<id>`; bare ids give empty-content garbage.
+
 ### Fleet dashboard — Homepage + `homepage.*` labels (TrueNAS)
 
 `servers/truenas/apps/homepage/` runs [Homepage](https://gethomepage.dev) at `https://www.bajaber.ca` — the single landing page for the fleet, with live status widgets per app. It is GitOps-native (no DB, no click-config): the dashboard is defined by `config/*.yaml` + `homepage.*` Docker labels, discovered off the read-only Docker socket exactly the way Traefik's docker provider discovers `traefik.*` labels. **A new app self-registers on the dashboard purely by carrying `homepage.*` labels — so add them next to the `traefik.*` block on every new user-facing app** (`homepage.group/name/icon/href/description`, plus optional `homepage.widget.type/url/key`). See the app's `README.md` for the worked convention (list-style vs map-style; quote `'{{...}}'` in map-style).

@@ -8,13 +8,15 @@
 # "Reconciler extension hooks #3"). Run from TrueNAS UI -> System Settings
 # -> Shell:  docker network create ai-net
 #
-# Bring-up is two-phase because the AI companions need a paperless API token
-# that can only be minted after a user logs in:
-#   1) Apply once with paperless-ai / paperless-gpt commented out (default
-#      shape of this file). Log in to https://paperless.bajaber.ca, create
-#      admin user, mint an API token at Settings -> API tokens.
-#   2) Drop the token into .env (PAPERLESS_API_TOKEN), uncomment the two
-#      companion services + their volumes, re-apply.
+# AI pipeline (same split as technotim.com/posts/paperless-ngx-local-ai):
+#   1) A paperless workflow tags every new document paperless-gpt-ocr-auto +
+#      paperless-gpt-auto.
+#   2) paperless-gpt re-reads the scan with a vision model (OCR), then sets
+#      title, correspondent, document type, and created date.
+#   3) paperless-ai picks up documents tagged paperless-gpt-ocr-complete and
+#      adds topic tags. It also serves RAG chat over the archive.
+# The workflow, trigger tags, paperless-gpt prompts, and paperless-ai's first-run
+# setup live outside this compose; scripts/paperless_ai_sync.py reconciles them.
 #
 # SSO chain is the same `authentik@docker` middleware sonarr/radarr/qbit use,
 # defined in servers/truenas/apps/authentik/compose.yml:73-75. paperless
@@ -134,6 +136,8 @@ services:
       - PAPERLESS_TIKA_ENABLED=1
       - PAPERLESS_TIKA_GOTENBERG_ENDPOINT=http://gotenberg:3000
       - PAPERLESS_TIKA_ENDPOINT=http://tika:9998
+      # Quebec mail arrives in both languages; eng-only Tesseract mangles accents.
+      - PAPERLESS_OCR_LANGUAGE=eng+fra
       # SSO via Authentik OIDC (django-allauth). Browser users get bounced to
       # Authentik via the "Login with Authentik" button (or auto-redirect with
       # PAPERLESS_REDIRECT_LOGIN_TO_SSO). Mobile app uses the same OIDC flow
@@ -190,8 +194,27 @@ services:
       - PAPERLESS_USERNAME=abajaber
       - AI_PROVIDER=ollama
       - OLLAMA_API_URL=http://ollama:11434
-      - OLLAMA_MODEL=gemma4:e4b
+      # Same text model as paperless-gpt, so the two share one loaded copy.
+      - OLLAMA_MODEL=qwen3:4b-instruct-2507-q4_K_M
       - SCAN_INTERVAL=*/30 * * * *
+      # These override what the first-run setup wrote to /app/data/.env, since
+      # dotenv never replaces a variable the container already has.
+      # paperless-gpt owns title, correspondent, type, and date; paperless-ai
+      # only adds tags, so the two never overwrite each other.
+      - ACTIVATE_TAGGING=yes
+      - ACTIVATE_TITLE=no
+      - ACTIVATE_CORRESPONDENTS=no
+      - ACTIVATE_DOCUMENT_TYPE=no
+      - ACTIVATE_CUSTOM_FIELDS=no
+      # Wait for paperless-gpt's vision OCR, so tagging reads the clean text.
+      - PROCESS_PREDEFINED_DOCUMENTS=yes
+      - TAGS=paperless-gpt-ocr-complete
+      - USE_EXISTING_DATA=yes
+      - ADD_AI_PROCESSED_TAG=yes
+      - AI_PROCESSED_TAG_NAME=ai-processed
+      - TOKEN_LIMIT=8192
+      - RESPONSE_TOKENS=512
+      - SYSTEM_PROMPT=You tag documents for a household archive in Quebec. Documents are in English or French. Pick 1 to 3 tags for the main topic of the document. Good topics are health, insurance, home, taxes, banking, utilities, vehicle, employment, education, government, and immigration. Reuse a pre-existing tag only when it names the same topic. A home insurance renewal is insurance and home, never health. Write every tag in English and lowercase, even when the document and the output format below say to use the document language. Never tag a person, place, city, province, date, amount, or document form such as letter or invoice.
     volumes:
       - /mnt/redsea/apps/paperless-ngx/ai-data:/app/data
     networks:
@@ -225,14 +248,28 @@ services:
       - PAPERLESS_BASE_URL=http://paperless:8000
       - PAPERLESS_API_TOKEN=${PAPERLESS_API_TOKEN}
       - LLM_PROVIDER=ollama
-      - LLM_MODEL=gemma4:e4b
+      # gemma4:e4b (9.6 GB) never fit the 6 GB GPU and spilled onto the CPU.
+      # These two stay resident next to Frigate.
+      - LLM_MODEL=qwen3:4b-instruct-2507-q4_K_M
       - OLLAMA_HOST=http://ollama:11434
-      - OLLAMA_CONTEXT_LENGTH=8192
-      - TOKEN_LIMIT=1000
+      # A full French page plus its English translation (see ocr_prompt.tmpl)
+      # used ~7000 tokens at 8192, one dense page from truncating.
+      - OLLAMA_CONTEXT_LENGTH=10240
+      # 1000 cut most letters off before the signature block; 3000 leaves room
+      # for the prompt and the tag/correspondent lists.
+      - TOKEN_LIMIT=3000
       - LLM_LANGUAGE=English
+      - OLLAMA_THINK=false
       - OCR_PROVIDER=llm
       - VISION_LLM_PROVIDER=ollama
-      - VISION_LLM_MODEL=gemma4:e4b
+      - VISION_LLM_MODEL=qwen3.5:4b
+      - VISION_LLM_TEMPERATURE=0
+      # 600 DPI pages blow past the vision model's context. 1600 px on the long
+      # edge still reads small print and leaves context for the translation.
+      - IMAGE_MAX_RENDER_DPI=200
+      - IMAGE_MAX_PIXEL_DIMENSION=1600
+      # paperless-ai owns topic tags (see header).
+      - AUTO_GENERATE_TAGS=false
       - AUTO_OCR_TAG=paperless-gpt-ocr-auto
       - AUTO_TAG=paperless-gpt-auto
       - MANUAL_TAG=paperless-gpt-manual

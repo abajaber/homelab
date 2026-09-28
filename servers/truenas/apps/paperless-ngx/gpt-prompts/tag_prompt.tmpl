@@ -1,0 +1,17 @@
+Select tags for this document from <available_tags>.
+
+Rules:
+- Choose 1 to 4 tags that describe what the document is about.
+- Use only tags from the list{{if .CreateNewTags}}, unless no listed tag fits and a new one clearly would{{end}}.
+- Never choose tags that start with "paperless-gpt" or "ai-processed".
+
+Reply with the tags as a comma-separated list. No explanation.
+
+<available_tags>
+{{.AvailableTags | join ", "}}
+</available_tags>
+
+<title>{{.Title}}</title>
+<content>
+{{.Content}}
+</content>
