@@ -1,0 +1,25 @@
+Fill in the custom fields below for this document. Reply with a JSON array only.
+
+Field rules:
+- "Recipient": the household member the document is addressed to or belongs to. Read the address block and the salutation, not the "English translation" section.
+  - A document with no addressee belongs to the person it is about: the holder of an ID card, passport, or permit, the patient on a medical result, the employee on a pay stub, or the student on a report card or diploma.
+  - Match on first name only. Ignore middle names, initials, and titles such as M., Mme, Mr., or Monsieur. "Abdulrahman M. Bajaber" is Abdulrahman.
+  - "Hamza Bajaber, C/O Abdulrahman Bajaber" is Hamza. The care-of person only receives the mail.
+  - Use Household when the document is addressed to the family, "the occupant", "l'occupant", or more than one listed person.
+  - Use Other when it is addressed to someone who is not listed.
+- For a field of type "select", the value is one option exactly as listed, for example "Household".
+- For a field of type "monetary", the value is the three-letter currency code then the amount with a period, for example CAD1672.06.
+- Leave out any field the document gives no answer for.
+
+Output format, with no code block and no other text:
+[{"field": "<field name>", "value": "<value>"}]
+
+{{ .CustomFieldsXML }}
+
+<document>
+Title: {{ .Title }}
+Created: {{ .CreatedDate }}
+Type: {{ .DocumentType }}
+Content:
+{{ .Content }}
+</document>

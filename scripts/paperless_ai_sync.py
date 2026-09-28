@@ -4,11 +4,13 @@
 The compose body defines the containers. Three more pieces live in app state
 and would otherwise be click-ops:
 
-1. Paperless-ngx: the paperless-gpt trigger tags and the "AI pipeline"
-   workflow that puts them on every new document.
+1. Paperless-ngx: the paperless-gpt trigger tags, the "AI pipeline"
+   workflow that puts them on every new document, and the "Recipient"
+   custom field.
 2. paperless-gpt: the prompt templates under
    servers/truenas/apps/paperless-ngx/gpt-prompts/, posted to its
-   /api/prompts endpoint, which validates and hot-reloads each one.
+   /api/prompts endpoint, which validates and hot-reloads each one, and the
+   settings that make auto-processing fill the Recipient field.
 3. paperless-ai: its first-run setup, which writes /app/data/.env and creates
    the login user. Compose env overrides every value that file holds, so this
    runs once and never again.
@@ -69,6 +71,13 @@ WORKFLOW_TAGS = ["paperless-gpt-ocr-auto", "paperless-gpt-auto"]
 TRIGGER_DOCUMENT_ADDED = 2
 ACTION_ASSIGNMENT = 1
 MATCH_NONE = 0
+
+# The household, so middle names and "M." prefixes collapse to one value.
+# "Household" covers mail to the family, the occupant, or several members.
+# Each option's id equals its label: paperless stores the id, and the model
+# sometimes answers with the label instead, which would otherwise be rejected.
+RECIPIENT_FIELD = "Recipient"
+RECIPIENT_OPTIONS = ["Abdulrahman", "Hamza", "Maryam", "Talia", "Household", "Other"]
 
 AI_USERNAME = "abajaber"
 AI_MODEL = "qwen3:4b-instruct-2507-q4_K_M"
@@ -184,6 +193,58 @@ def sync_workflow(p: Paperless, tag_ids: dict[str, int], apply: bool) -> int:
     return 0
 
 
+def sync_recipient_field(p: Paperless, apply: bool) -> tuple[int, int | None]:
+    field = next((f for f in p.all("custom_fields") if f["name"] == RECIPIENT_FIELD), None)
+    if field is None:
+        print(f"+ custom field {RECIPIENT_FIELD} (select: {', '.join(RECIPIENT_OPTIONS)})")
+        if not apply:
+            return 1, None
+        field = p.post("custom_fields", {
+            "name": RECIPIENT_FIELD,
+            "data_type": "select",
+            "extra_data": {"select_options": [{"id": o, "label": o} for o in RECIPIENT_OPTIONS]},
+        })
+        return 1, field["id"]
+    options = field["extra_data"]["select_options"]
+    labels = [o["label"] for o in options]
+    for o in options:
+        if o["id"] != o["label"]:
+            print(f"! custom field {RECIPIENT_FIELD}: option {o['label']!r} has id {o['id']!r}, not its label")
+    missing = [o for o in RECIPIENT_OPTIONS if o not in labels]
+    if not missing:
+        return 0, field["id"]
+    # Append only: an option's id is what documents store, so existing options
+    # keep theirs and never get renamed or dropped here.
+    print(f"~ custom field {RECIPIENT_FIELD}: add options {', '.join(missing)}")
+    if apply:
+        p.patch(f"custom_fields/{field['id']}", {
+            "extra_data": {"select_options": options + [{"id": o, "label": o} for o in missing]},
+        })
+    return 1, field["id"]
+
+
+def sync_gpt_settings(field_id: int | None, apply: bool) -> int:
+    res = in_cluster("GET", f"{GPT_URL}/api/settings")
+    if not (isinstance(res, dict) and isinstance(res.get("settings"), dict)):
+        raise RuntimeError(f"paperless-gpt /api/settings returned {res!r}")
+    live = res["settings"]
+    want = dict(live)
+    want["custom_fields_enable"] = True
+    want["custom_fields_selected_ids"] = sorted({*(live.get("custom_fields_selected_ids") or []), field_id or -1})
+    # "append" keeps any custom field a person already set by hand.
+    want["custom_fields_write_mode"] = "append"
+    if want == live:
+        return 0
+    print(f"~ paperless-gpt settings: fill custom field {RECIPIENT_FIELD} during auto-processing")
+    if apply:
+        # POST replaces the whole settings object, so send the live one back
+        # with only these two keys changed.
+        res = in_cluster("POST", f"{GPT_URL}/api/settings", want)
+        if not (isinstance(res, dict) and "message" in res):
+            raise RuntimeError(f"paperless-gpt settings: {res}")
+    return 1
+
+
 def sync_prompts(apply: bool) -> int:
     live = in_cluster("GET", f"{GPT_URL}/api/prompts")
     if not isinstance(live, dict):
@@ -245,6 +306,9 @@ def main() -> int:
 
     total, tag_ids = sync_tags(p, args.apply)
     total += sync_workflow(p, tag_ids, args.apply)
+    changes, field_id = sync_recipient_field(p, args.apply)
+    total += changes
+    total += sync_gpt_settings(field_id, args.apply)
     total += sync_prompts(args.apply)
     total += sync_ai_setup(token, args.apply)
 

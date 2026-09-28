@@ -281,6 +281,10 @@ services:
       - PGID=568
     volumes:
       - /mnt/redsea/apps/paperless-ngx/gpt-prompts:/app/prompts
+      # settings.json (custom-field generation) and the OCR run history live
+      # here; without a bind they reset on every container recreate.
+      - /mnt/redsea/apps/paperless-ngx/gpt-config:/app/config
+      - /mnt/redsea/apps/paperless-ngx/gpt-db:/app/db
     networks:
       - default
       - proxy
