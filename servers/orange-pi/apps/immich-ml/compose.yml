@@ -15,7 +15,7 @@
 # rknn weights), then re-run the Smart Search job to reprocess the library.
 services:
   immich-machine-learning:
-    image: ghcr.io/immich-app/immich-machine-learning:v2.7.5-rknn
+    image: ghcr.io/immich-app/immich-machine-learning:v3.2.4-rknn
     container_name: immich-ml
     restart: unless-stopped
     security_opt:
