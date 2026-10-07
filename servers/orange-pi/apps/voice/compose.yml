@@ -78,7 +78,7 @@ services:
     # `v<ver>-ls<build>` tags with its own build counter, distinct from the
     # `gpu-v<ver>-ls<build>` stream — see the faster-whisper rule in
     # renovate.json, which pins the versioning regex to the CPU shape.
-    image: lscr.io/linuxserver/faster-whisper:v3.8.1-ls6
+    image: lscr.io/linuxserver/faster-whisper:v3.8.1-ls8
     container_name: wyoming-whisper
     restart: unless-stopped
     environment:
