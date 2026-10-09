@@ -355,7 +355,7 @@ services:
       - CMD
       - immich-healthcheck
       timeout: 5s
-    image: ghcr.io/immich-app/immich-server:v2.7.5
+    image: ghcr.io/immich-app/immich-server:v3.3.1
     labels:
       traefik.docker.network: proxy
       traefik.enable: 'true'
