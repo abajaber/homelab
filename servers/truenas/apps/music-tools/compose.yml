@@ -194,7 +194,8 @@ services:
     image: python:3.12-slim
     container_name: music-sync
     restart: unless-stopped
-    user: "568:568"
+    # Package setup needs root; gosu runs the sync loop as apps:apps.
+    user: "0:0"
     environment:
       - TZ=America/toronto
     volumes:
@@ -209,11 +210,15 @@ services:
       - -c
       - |
         set -e
-        apt-get update -qq && apt-get install -y -qq --no-install-recommends ffmpeg ca-certificates >/dev/null
+        apt-get update -qq
+        apt-get install -y -qq --no-install-recommends ffmpeg ca-certificates gosu >/dev/null
         pip install --quiet --no-cache-dir --root-user-action=ignore yt-dlp
-        mkdir -p /config/archives /config/logs /music/playlists/_m3u
-        while :; do
-          [ -f /scripts/sync_yt.py ]  && python3 /scripts/sync_yt.py  || echo "sync_yt.py missing"
-          [ -f /scripts/sync_csv.py ] && python3 /scripts/sync_csv.py || echo "sync_csv.py missing"
-          sleep 21600
-        done
+        exec gosu 568:568 sh -c '
+          set -e
+          mkdir -p /config/archives /config/logs /music/playlists/_m3u
+          while :; do
+            [ -f /scripts/sync_yt.py ]  && python3 /scripts/sync_yt.py  || echo "sync_yt.py missing"
+            [ -f /scripts/sync_csv.py ] && python3 /scripts/sync_csv.py || echo "sync_csv.py missing"
+            sleep 21600
+          done
+        '
