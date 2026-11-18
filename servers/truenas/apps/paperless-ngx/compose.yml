@@ -102,7 +102,7 @@ services:
       - TZ=America/toronto
 
   paperless:
-    image: ghcr.io/paperless-ngx/paperless-ngx:2.20.15
+    image: ghcr.io/paperless-ngx/paperless-ngx:3.5.0
     container_name: paperless
     restart: unless-stopped
     # Run directly as the apps:apps uid/gid the dataset is stamped with.
@@ -128,6 +128,7 @@ services:
       - PAPERLESS_URL=https://paperless.bajaber.ca
       - PAPERLESS_REDIS=redis://default:${PAPERLESS_REDIS_PASSWORD}@redis:6379
       - PAPERLESS_DBHOST=db
+      - PAPERLESS_DBENGINE=postgresql
       - PAPERLESS_DBPORT=5432
       - PAPERLESS_DBNAME=paperless
       - PAPERLESS_DBUSER=paperless
@@ -138,6 +139,9 @@ services:
       - PAPERLESS_TIKA_ENDPOINT=http://tika:9998
       # Quebec mail arrives in both languages; eng-only Tesseract mangles accents.
       - PAPERLESS_OCR_LANGUAGE=eng+fra
+      - PAPERLESS_OCR_MODE=auto
+      - PAPERLESS_ARCHIVE_FILE_GENERATION=always
+      - PAPERLESS_CONSUMER_DELETE_DUPLICATES=true
       # SSO via Authentik OIDC (django-allauth). Browser users get bounced to
       # Authentik via the "Login with Authentik" button (or auto-redirect with
       # PAPERLESS_REDIRECT_LOGIN_TO_SSO). Mobile app uses the same OIDC flow
