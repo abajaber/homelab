@@ -110,7 +110,7 @@ services:
   # and exits. webui.db goes through the SQLite backup API because the old
   # container may still be writing to it during the copy.
   migrate-data:
-    image: ixsystems/container-utils:1.0.2
+    image: ixsystems/container-utils:1.1.2
     user: 0:0
     network_mode: none
     restart: "no"
@@ -179,7 +179,7 @@ services:
     - 568
     healthcheck:
       disable: true
-    image: ixsystems/container-utils:1.0.2
+    image: ixsystems/container-utils:1.1.2
     network_mode: none
     platform: linux/amd64
     privileged: false
