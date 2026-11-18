@@ -27,7 +27,7 @@ class PaperlessV3SettingsTest(unittest.TestCase):
         variables = dict(value.split("=", 1) for value in service["environment"])
         command = ["docker", "run", "--rm", "--network", "none", "--pull", "never",
                    "--entrypoint", "python", "-e", "PAPERLESS_SECRET_KEY=isolated-test"]
-        for key in ["PAPERLESS_DBENGINE", "PAPERLESS_DBHOST", "PAPERLESS_OCR_MODE",
+        for key in ["PAPERLESS_URL", "PAPERLESS_ALLOWED_HOSTS", "PAPERLESS_DBENGINE", "PAPERLESS_DBHOST", "PAPERLESS_OCR_MODE",
                     "PAPERLESS_ARCHIVE_FILE_GENERATION", "PAPERLESS_CONSUMER_DELETE_DUPLICATES"]:
             if key in variables:
                 command += ["-e", f"{key}={variables[key]}"]
@@ -35,9 +35,13 @@ class PaperlessV3SettingsTest(unittest.TestCase):
         command += ["ghcr.io/paperless-ngx/paperless-ngx:3.5.0", "-c",
                     "from paperless import settings as s; import json; "
                     "print(json.dumps([s.DATABASES['default']['ENGINE'], s.OCR_MODE, "
-                    "s.ARCHIVE_FILE_GENERATION, s.CONSUMER_DELETE_DUPLICATES]))"]
+                    "s.ARCHIVE_FILE_GENERATION, s.CONSUMER_DELETE_DUPLICATES, s.ALLOWED_HOSTS]))"]
         result = subprocess.check_output(command, text=True, timeout=60)
-        self.assertEqual(json.loads(result), ["django.db.backends.postgresql", "auto", "always", True])
+        settings = json.loads(result)
+        self.assertEqual(settings[:4], ["django.db.backends.postgresql", "auto", "always", True])
+        for host in ["paperless", "paperless.bajaber.ca", "localhost"]:
+            self.assertIn(host, settings[4])
+        self.assertNotIn("*", settings[4])
 
 
 if __name__ == "__main__":

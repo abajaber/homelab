@@ -126,6 +126,7 @@ services:
       - TZ=America/toronto
       - PAPERLESS_TIME_ZONE=America/Toronto
       - PAPERLESS_URL=https://paperless.bajaber.ca
+      - PAPERLESS_ALLOWED_HOSTS=paperless
       - PAPERLESS_REDIS=redis://default:${PAPERLESS_REDIS_PASSWORD}@redis:6379
       - PAPERLESS_DBHOST=db
       - PAPERLESS_DBENGINE=postgresql
