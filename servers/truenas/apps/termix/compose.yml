@@ -11,6 +11,7 @@ services:
     image: ghcr.io/lukegus/termix:release-2.9.2
     container_name: termix
     restart: unless-stopped
+    user: "1000:1000"
     environment:
       PORT: "8080"
       TZ: America/Toronto
