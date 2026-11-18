@@ -62,7 +62,7 @@ services:
       - "10500:10500"
 
   wyoming-piper:
-    image: rhasspy/wyoming-piper:2.5.2
+    image: rhasspy/wyoming-piper:2.5.4
     container_name: wyoming-piper
     restart: unless-stopped
     command: --voice ar_JO-kareem-medium
